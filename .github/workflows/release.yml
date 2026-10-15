@@ -1,0 +1,113 @@
+name: Release
+
+# Push a tag like v0.1.0 to build binaries for every platform, attach them to a
+# GitHub Release and publish the `mhtml-cli` npm package.
+#
+# Requires the repository secret NPM_TOKEN (an npm "automation" token).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-version:
+    name: Check versions match the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare tag, Cargo.toml and npm/package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          cargo_version=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"(.*)".*/\1/')
+          npm_version=$(node -p "require('./npm/package.json').version")
+          echo "tag=$tag cargo=$cargo_version npm=$npm_version"
+          [ "$tag" = "$cargo_version" ] && [ "$tag" = "$npm_version" ] || {
+            echo "::error::Version mismatch: tag=$tag Cargo.toml=$cargo_version npm/package.json=$npm_version"
+            exit 1
+          }
+
+  build:
+    name: Build ${{ matrix.asset }}
+    needs: check-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { os: macos-latest, target: aarch64-apple-darwin, asset: mhtml-darwin-arm64 }
+          - { os: macos-13, target: x86_64-apple-darwin, asset: mhtml-darwin-x64 }
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-musl, asset: mhtml-linux-x64, musl: true }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-musl, asset: mhtml-linux-arm64, musl: true }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, asset: mhtml-win32-x64.exe }
+          - { os: windows-11-arm, target: aarch64-pc-windows-msvc, asset: mhtml-win32-arm64.exe }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl tools
+        if: matrix.musl
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package (gzip + sha256)
+        shell: bash
+        run: |
+          mkdir dist
+          bin=target/${{ matrix.target }}/release/mhtml
+          [ -f "$bin.exe" ] && bin="$bin.exe"
+          cp "$bin" "dist/${{ matrix.asset }}"
+          gzip -9 "dist/${{ matrix.asset }}"
+          cd dist
+          if command -v sha256sum >/dev/null; then
+            sha256sum "${{ matrix.asset }}.gz" > "${{ matrix.asset }}.gz.sha256"
+          else
+            shasum -a 256 "${{ matrix.asset }}.gz" > "${{ matrix.asset }}.gz.sha256"
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/*
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  npm:
+    name: Publish to npm
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - name: Publish
+        working-directory: npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          cp ../LICENSE ../README.md .
+          npm test
+          npm publish --access public
