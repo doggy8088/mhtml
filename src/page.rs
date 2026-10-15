@@ -24,6 +24,8 @@ pub struct Page<'a> {
     pub base: Option<&'a str>,
     /// Include the built-in theme and stylesheet.
     pub default_style: bool,
+    /// Include the syntax highlighting palette.
+    pub highlight: bool,
     /// `:root { --mhtml-... }` block built from --accent/--width/...
     pub overrides: Option<String>,
     /// User stylesheets, emitted last so they win.
@@ -43,7 +45,7 @@ impl Page<'_> {
         if self.default_style {
             head.push_str(&format!(
                 "<style id=\"mhtml-theme\">\n{}</style>\n",
-                style::theme_css(self.theme)
+                style::theme_css(self.theme, self.highlight)
             ));
             head.push_str(&format!("<style id=\"mhtml-base\">\n{}</style>\n", style::BASE));
             if let Some(overrides) = &self.overrides {
@@ -95,6 +97,7 @@ mod tests {
             theme: Theme::Auto,
             base,
             default_style: false,
+            highlight: false,
             overrides: None,
             extra_css: &[],
         }

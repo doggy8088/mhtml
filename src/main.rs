@@ -1,4 +1,5 @@
 mod cli;
+mod highlight;
 mod page;
 mod preview;
 mod render;
@@ -24,6 +25,7 @@ fn main() -> Result<()> {
         &render::RenderOptions {
             smart_punctuation: cli.smart_punctuation,
             unsafe_html: cli.unsafe_html,
+            highlight: !cli.no_highlight,
         },
     );
 
@@ -60,6 +62,7 @@ fn main() -> Result<()> {
         theme: cli.theme,
         base: base.as_deref(),
         default_style: !cli.no_default_style,
+        highlight: rendered.uses_highlight,
         overrides,
         extra_css: &extra_css,
     }

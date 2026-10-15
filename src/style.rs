@@ -5,6 +5,7 @@ use std::fs;
 use anyhow::{bail, Context, Result};
 
 use crate::cli::Theme;
+use crate::highlight;
 
 const LIGHT: &str = include_str!("../assets/theme-light.css");
 const DARK: &str = include_str!("../assets/theme-dark.css");
@@ -14,11 +15,19 @@ pub const BASE: &str = include_str!("../assets/style.css");
 ///
 /// `auto` emits the light palette and lets the dark palette take over inside a
 /// `prefers-color-scheme: dark` media query, so no JavaScript is needed.
-pub fn theme_css(theme: Theme) -> String {
+/// With `highlight`, the matching syntax highlighting palette is appended.
+pub fn theme_css(theme: Theme, highlight: bool) -> String {
+    let (hl_light, hl_dark) = if highlight {
+        (highlight::css_light(), highlight::css_dark())
+    } else {
+        (String::new(), String::new())
+    };
     match theme {
-        Theme::Light => LIGHT.to_string(),
-        Theme::Dark => DARK.to_string(),
-        Theme::Auto => format!("{LIGHT}\n@media (prefers-color-scheme: dark) {{\n{DARK}\n}}\n"),
+        Theme::Light => format!("{LIGHT}\n{hl_light}"),
+        Theme::Dark => format!("{DARK}\n{hl_dark}"),
+        Theme::Auto => format!(
+            "{LIGHT}\n{hl_light}\n@media (prefers-color-scheme: dark) {{\n{DARK}\n{hl_dark}\n}}\n"
+        ),
     }
 }
 
@@ -95,7 +104,7 @@ mod tests {
 
     #[test]
     fn auto_theme_contains_both_palettes() {
-        let css = theme_css(Theme::Auto);
+        let css = theme_css(Theme::Auto, false);
         assert!(css.contains("color-scheme: light"));
         assert!(css.contains("prefers-color-scheme: dark"));
         assert!(css.contains("color-scheme: dark"));
@@ -103,8 +112,17 @@ mod tests {
 
     #[test]
     fn explicit_themes_have_single_palette() {
-        assert!(!theme_css(Theme::Light).contains("prefers-color-scheme"));
-        assert!(!theme_css(Theme::Dark).contains("color-scheme: light"));
+        assert!(!theme_css(Theme::Light, false).contains("prefers-color-scheme"));
+        assert!(!theme_css(Theme::Dark, false).contains("color-scheme: light"));
+    }
+
+    #[test]
+    fn highlight_palettes_follow_the_theme() {
+        let auto = theme_css(Theme::Auto, true);
+        assert!(auto.contains(".hl-"));
+        assert!(auto.matches("  color-scheme: ").count() == 2);
+        assert!(theme_css(Theme::Light, true).contains(".hl-"));
+        assert!(!theme_css(Theme::Light, false).contains(".hl-"));
     }
 
     #[test]

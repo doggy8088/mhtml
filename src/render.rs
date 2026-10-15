@@ -5,14 +5,17 @@
 
 use std::collections::HashMap;
 
-use pulldown_cmark::{html, CowStr, Event, HeadingLevel, MetadataBlockKind, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{
+    html, CodeBlockKind, CowStr, Event, HeadingLevel, MetadataBlockKind, Options, Parser, Tag, TagEnd,
+};
 
-use crate::sanitize;
+use crate::{highlight, sanitize};
 
 #[derive(Debug, Clone, Default)]
 pub struct RenderOptions {
     pub smart_punctuation: bool,
     pub unsafe_html: bool,
+    pub highlight: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +24,9 @@ pub struct Rendered {
     pub body: String,
     /// Best-effort document title (front matter, then first heading).
     pub title: Option<String>,
+    /// True when at least one code block was highlighted (so the highlight CSS
+    /// is needed).
+    pub uses_highlight: bool,
 }
 
 pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
@@ -40,6 +46,11 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
 
     let (events, front_matter_title) = strip_front_matter(events);
     let (events, heading_title) = assign_heading_ids(events);
+    let (events, uses_highlight) = if opts.highlight {
+        highlight_code_blocks(events)
+    } else {
+        (events, false)
+    };
 
     let mut html_out = String::with_capacity(source.len() * 2);
     html::push_html(&mut html_out, events.into_iter());
@@ -53,6 +64,7 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
     Rendered {
         body,
         title: front_matter_title.or(heading_title),
+        uses_highlight,
     }
 }
 
@@ -127,6 +139,51 @@ fn assign_heading_ids(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, Option<String>
     (out, first_title)
 }
 
+/// Replaces fenced code blocks that have a known language with pre-highlighted
+/// HTML. Blocks without a language, or with an unknown one, stay untouched.
+fn highlight_code_blocks(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, bool) {
+    let mut out = Vec::with_capacity(events.len());
+    let mut used = false;
+    let mut iter = events.into_iter();
+
+    while let Some(event) = iter.next() {
+        let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) = &event else {
+            out.push(event);
+            continue;
+        };
+        let info = info.to_string();
+
+        let mut body = Vec::new();
+        let mut code = String::new();
+        for inner in iter.by_ref() {
+            match inner {
+                Event::End(TagEnd::CodeBlock) => break,
+                Event::Text(t) => {
+                    code.push_str(&t);
+                    body.push(Event::Text(t));
+                }
+                other => body.push(other),
+            }
+        }
+
+        match highlight::highlight(&info, &code) {
+            Some(inner) => {
+                used = true;
+                let lang = crate::page::escape(highlight::language(&info));
+                out.push(Event::Html(CowStr::from(format!(
+                    "<pre><code class=\"language-{lang}\">{inner}</code></pre>\n"
+                ))));
+            }
+            None => {
+                out.push(event);
+                out.extend(body);
+                out.push(Event::End(TagEnd::CodeBlock));
+            }
+        }
+    }
+    (out, used)
+}
+
 fn unique_slug(text: &str, seen: &mut HashMap<String, usize>) -> String {
     let base = slugify(text);
     let count = seen.entry(base.clone()).or_insert(0);
@@ -166,6 +223,10 @@ mod tests {
 
     fn body(md: &str) -> String {
         render(md, &RenderOptions::default()).body
+    }
+
+    fn highlighted(md: &str) -> Rendered {
+        render(md, &RenderOptions { highlight: true, ..Default::default() })
     }
 
     #[test]
@@ -231,5 +292,23 @@ mod tests {
 
         let raw = render(md, &RenderOptions { unsafe_html: true, ..Default::default() }).body;
         assert!(raw.contains("<script>"));
+    }
+
+    #[test]
+    fn fenced_code_is_highlighted_when_enabled() {
+        let r = highlighted("```rust\nfn main() {}\n```\n");
+        assert!(r.uses_highlight);
+        assert!(r.body.contains("language-rust"), "{}", r.body);
+        assert!(r.body.contains("<span class=\"hl-"), "{}", r.body);
+    }
+
+    #[test]
+    fn highlighting_is_off_by_default_and_skips_unknown_languages() {
+        let md = "```rust\nfn main() {}\n```\n";
+        assert!(!render(md, &RenderOptions::default()).uses_highlight);
+        let r = highlighted("```nope\n<b>x</b>\n```\n\n```\nplain\n```\n");
+        assert!(!r.uses_highlight);
+        assert!(r.body.contains("&lt;b&gt;x&lt;/b&gt;"), "{}", r.body);
+        assert!(r.body.contains("plain"));
     }
 }
