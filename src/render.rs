@@ -68,8 +68,15 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         sanitize::clean(&html_out)
     };
     if let Some(toc_title) = &opts.toc_title {
-        // Built from escaped text only, so it is added after sanitizing.
-        body.insert_str(0, &build_toc(&headings, toc_title));
+        // Built from escaped text only, so it is added after sanitizing. It goes
+        // right after a leading page title (H1), otherwise at the very top.
+        let at = match headings.first() {
+            Some(h) if h.level == HeadingLevel::H1 => {
+                body.find("</h1>").map_or(0, |i| i + "</h1>".len() + 1)
+            }
+            _ => 0,
+        };
+        body.insert_str(at.min(body.len()), &build_toc(&headings, toc_title));
     }
     let heading_title = headings
         .iter()
@@ -449,7 +456,8 @@ mod tests {
     fn toc_lists_headings_without_the_lone_title() {
         let o = with(|o| o.toc_title = Some("目錄".into()));
         let body = render("# Title\n\n## A\n\n### A1\n\n## B & C\n", &o).body;
-        assert!(body.starts_with("<nav class=\"toc\">"), "{body}");
+        let (title, rest) = body.split_once("</h1>").unwrap();
+        assert!(title.contains("Title") && rest.trim_start().starts_with("<nav class=\"toc\">"), "{body}");
         assert!(body.contains("<strong>目錄</strong>"));
         assert!(body.contains("<a href=\"#a\">A</a>"), "{body}");
         assert!(body.contains("<a href=\"#a1\">A1</a>"), "{body}");
@@ -463,5 +471,7 @@ mod tests {
         assert!(!body("# T\n\n## A\n").contains("class=\"toc\""));
         let o = with(|o| o.toc_title = Some("x".into()));
         assert!(!render("just text\n", &o).body.contains("toc"));
+        // Without a leading H1 the TOC goes first.
+        assert!(render("intro\n\n## A\n\n## B\n", &o).body.starts_with("<nav class=\"toc\">"));
     }
 }

@@ -144,7 +144,7 @@ details[open] > summary { margin-bottom: 0.5em; }
 
 /* Math (rendered as MathML) */
 math { font-size: 1.1em; }
-math[display="block"] { display: block; margin: 1em 0; overflow-x: auto; text-align: center; }
+math[display="block"] { display: block math; margin: 1em 0; text-align: center; }
 
 /* Footnotes */
 sup.footnote-reference { font-size: 0.75em; line-height: 0; }

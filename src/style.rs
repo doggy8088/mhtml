@@ -25,8 +25,12 @@ pub fn theme_css(theme: Theme, highlight: bool) -> String {
     match theme {
         Theme::Light => format!("{LIGHT}\n{hl_light}"),
         Theme::Dark => format!("{DARK}\n{hl_dark}"),
+        // The syntax palettes use selectors of different specificity, so the
+        // light one must not be active at all in dark mode: wrap it in the
+        // opposite media query instead of relying on source order.
         Theme::Auto => format!(
-            "{LIGHT}\n{hl_light}\n@media (prefers-color-scheme: dark) {{\n{DARK}\n{hl_dark}\n}}\n"
+            "{LIGHT}\n@media not all and (prefers-color-scheme: dark) {{\n{hl_light}\n}}\n\
+             @media (prefers-color-scheme: dark) {{\n{DARK}\n{hl_dark}\n}}\n"
         ),
     }
 }
@@ -120,6 +124,10 @@ mod tests {
     fn highlight_palettes_follow_the_theme() {
         let auto = theme_css(Theme::Auto, true);
         assert!(auto.contains(".hl-"));
+        // light palette only outside dark mode, dark palette only inside it
+        let (before_dark, dark) = auto.split_once("@media (prefers-color-scheme: dark)").unwrap();
+        assert!(before_dark.contains("not all and (prefers-color-scheme: dark)"));
+        assert!(before_dark.contains(".hl-") && dark.contains(".hl-"));
         assert!(auto.matches("  color-scheme: ").count() == 2);
         assert!(theme_css(Theme::Light, true).contains(".hl-"));
         assert!(!theme_css(Theme::Light, false).contains(".hl-"));
