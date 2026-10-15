@@ -3,7 +3,9 @@ name: Release
 # Push a tag like v0.1.0 to build binaries for every platform, attach them to a
 # GitHub Release and publish the `mhtml-cli` npm package.
 #
-# Requires the repository secret NPM_TOKEN (an npm "automation" token).
+# The npm step needs the repository secret NPM_TOKEN (a granular token with
+# read/write on packages and 2FA bypass). Without it the step is skipped, so
+# the first version can be published by hand with `npm publish`.
 
 on:
   push:
@@ -108,6 +110,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          version=$(node -p "require('./package.json').version")
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "::warning::NPM_TOKEN is not set; skipping npm publish (publish manually with 'npm publish')."
+            exit 0
+          fi
+          if npm view "mhtml-cli@$version" version >/dev/null 2>&1; then
+            echo "::notice::mhtml-cli@$version is already on npm; skipping."
+            exit 0
+          fi
           cp ../LICENSE ../README.md .
           npm test
           npm publish --access public
