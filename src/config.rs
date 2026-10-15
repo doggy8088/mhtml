@@ -318,14 +318,20 @@ mod tests {
 
     #[test]
     fn css_paths_resolve_relative_to_the_config_file() {
-        let dir = Path::new("/cfg");
+        // Build paths with the platform's own rules: "/abs" is not absolute on
+        // Windows, and separators differ.
+        let dir = std::env::temp_dir().join("cfg");
+        let abs = std::env::temp_dir().join("abs").join("a.css");
         assert_eq!(
-            resolve_css_spec("a.css", Some(dir)),
-            Path::new("/cfg/a.css").to_string_lossy()
+            Path::new(&resolve_css_spec("a.css", Some(&dir))),
+            dir.join("a.css")
         );
-        assert_eq!(resolve_css_spec("/abs/a.css", Some(dir)), "/abs/a.css");
         assert_eq!(
-            resolve_css_spec("https://x/y.css", Some(dir)),
+            Path::new(&resolve_css_spec(abs.to_str().unwrap(), Some(&dir))),
+            abs
+        );
+        assert_eq!(
+            resolve_css_spec("https://x/y.css", Some(&dir)),
             "https://x/y.css"
         );
     }
