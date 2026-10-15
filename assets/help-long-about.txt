@@ -1,0 +1,33 @@
+Convert Markdown to a beautiful, self-contained HTML page: one file, CSS inlined, works offline.
+Supports CommonMark + GFM (tables, task lists, footnotes, alerts), code highlighting, LaTeX math,
+front matter, light/dark themes and custom CSS.
+
+QUICK START (for people and AI agents)
+  Scriptable, non-interactive (never opens a browser) - use these in automation:
+    $ mhtml notes.md notes.html                  # write notes.html
+    $ mhtml notes.md notes.html --theme dark     # force the dark theme
+    $ cat notes.md | mhtml - -                   # stdin -> stdout (HTML only)
+  Interactive preview (opens the default browser - avoid in headless or automated runs):
+    $ mhtml notes.md                             # temp file + browser
+    $ mhtml notes.md --no-open                   # temp file only; prints its path
+
+RULES OF THUMB FOR AGENTS
+  1. Always pass an OUTPUT (or `-` for stdout), or --no-open.
+     Bare `mhtml file.md` launches a browser.
+  2. Add --no-config for reproducible output: the user's config file (see CONFIG FILE) can change
+     the theme, CSS, language and more.
+  3. INPUT is read, never modified. OUTPUT is overwritten without asking (its folder must exist),
+     but mhtml refuses when OUTPUT is the same file as INPUT.
+  4. Check the result by exit code, not by parsing stderr (see OUTPUT CONTRACT).
+
+OUTPUT CONTRACT
+  success     exit 0. With an OUTPUT file: HTML is written there, "Wrote <path>" goes to stderr
+              and stdout stays empty. With OUTPUT `-`: stdout is exactly one HTML document.
+  preview     with --no-open, stdout is only the temp file path; otherwise the browser opens
+              and "Previewing <path>" goes to stderr.
+  failure     exit 1. Stderr holds "Error: <what failed>" and "Caused by:" lines; stdout is empty.
+  bad usage   exit 2. Stderr holds the usage error (unknown flag, missing INPUT, conflicts).
+  format      UTF-8 text starting with "<!doctype html>".
+  title       --title, else front matter `title:`, else the first H1, else the file name.
+  paths       relative image/link paths are kept as written and resolve next to the OUTPUT
+              file (change that with --base).

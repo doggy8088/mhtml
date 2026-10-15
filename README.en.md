@@ -42,6 +42,8 @@ cargo install --git https://github.com/doggy8088/mhtml
 
 ## Usage
 
+> 🤖 **For AI agents and scripts**: `mhtml --help` is a complete guide — quick start, the output contract (exit codes, stdout/stderr split), grouped examples, styling hooks, config file and troubleshooting. In automation always pass an OUTPUT (or `-`) or `--no-open`, and add `--no-config` for reproducible output.
+
 ```text
 mhtml [OPTIONS] <INPUT> [OUTPUT]
 ```

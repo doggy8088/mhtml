@@ -50,6 +50,8 @@ cargo install --git https://github.com/doggy8088/mhtml   # 需要 Rust 1.88+
 
 ## 使用方式
 
+> 🤖 **給 AI agent 與腳本**：`mhtml --help` 內含完整指南——快速上手、輸出契約（exit code、stdout／stderr 分工）、分類範例、樣式鉤子、設定檔與疑難排解。自動化時請一律指定 OUTPUT（或 `-`）或加上 `--no-open`，並加 `--no-config` 取得可重現的輸出。
+
 ```text
 mhtml [OPTIONS] <INPUT> [OUTPUT]
 ```

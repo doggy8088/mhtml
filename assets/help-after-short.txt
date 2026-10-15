@@ -1,0 +1,8 @@
+EXAMPLES:
+  mhtml README.md README.html           Write a standalone HTML file
+  mhtml README.md out.html --theme dark Dark theme
+  mhtml doc.md out.html --css my.css    Add your own stylesheet
+  mhtml README.md                       Preview in the default browser
+  cat doc.md | mhtml - -                Read stdin, write stdout
+
+Run `mhtml --help` for the full guide: output contract, more examples, styling hooks, config file.

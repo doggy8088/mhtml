@@ -419,3 +419,96 @@ fn refuses_to_overwrite_the_input_file() {
     assert!(!res.status.success());
     assert_eq!(fs::read_to_string(&md).unwrap(), "# keep me\n");
 }
+
+/// The OUTPUT CONTRACT section of `mhtml --help` promises these exact behaviors.
+#[test]
+fn output_contract_in_the_help_is_true() {
+    let dir = Scratch::new("contract");
+    let md = dir.file("a.md", "# Title\n");
+    let out = dir.path().join("a.html");
+
+    // success with an OUTPUT file: exit 0, stdout empty, "Wrote <path>" on stderr
+    let res = bin()
+        .arg("--no-config")
+        .arg(&md)
+        .arg(&out)
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(0));
+    assert!(res.stdout.is_empty());
+    assert!(stderr(&res).starts_with("Wrote "), "{}", stderr(&res));
+
+    // success with OUTPUT `-`: stdout is exactly one HTML document, stderr quiet
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert_eq!(res.status.code(), Some(0));
+    let html = stdout(&res);
+    assert!(html.starts_with("<!doctype html>") && html.trim_end().ends_with("</html>"));
+    assert_eq!(html.matches("<!doctype html>").count(), 1);
+    assert!(res.stderr.is_empty());
+
+    // preview with --no-open: stdout is only the temp file path
+    let res = bin()
+        .args(["--no-config", "--no-open"])
+        .arg(&md)
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(0));
+    let printed = stdout(&res);
+    assert_eq!(printed.trim().lines().count(), 1);
+    let _ = fs::remove_file(printed.trim());
+
+    // failure: exit 1, stdout empty, "Error: ..." on stderr
+    let res = bin()
+        .arg("--no-config")
+        .arg(dir.path().join("missing.md"))
+        .arg("-")
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(1));
+    assert!(res.stdout.is_empty());
+    assert!(stderr(&res).starts_with("Error: "), "{}", stderr(&res));
+
+    // output folder must exist
+    let res = bin()
+        .arg("--no-config")
+        .arg(&md)
+        .arg(dir.path().join("nodir/x.html"))
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(1));
+
+    // bad usage: exit 2
+    for args in [
+        &["--no-such-flag"][..],
+        &[][..],
+        &["a.md", "--open", "--no-open"][..],
+    ] {
+        let res = bin().args(args).output().unwrap();
+        assert_eq!(res.status.code(), Some(2), "{args:?}");
+        assert!(res.stdout.is_empty());
+    }
+}
+
+#[test]
+fn help_is_a_guide_for_agents_and_short_help_points_to_it() {
+    let long = bin().arg("--help").output().unwrap();
+    assert_eq!(long.status.code(), Some(0));
+    let long = stdout(&long);
+    assert!(long.starts_with(&format!(
+        "mhtml {}\nUsage: mhtml [OPTIONS] <INPUT> [OUTPUT]",
+        env!("CARGO_PKG_VERSION")
+    )));
+    // The most important guidance comes before the option list.
+    let quick = long.find("QUICK START").unwrap();
+    let contract = long.find("OUTPUT CONTRACT").unwrap();
+    let options = long.find("Options:").unwrap();
+    assert!(quick < contract && contract < options);
+    assert!(long.find("TROUBLESHOOTING").unwrap() > options);
+
+    let short = stdout(&bin().arg("-h").output().unwrap());
+    assert!(
+        short.contains("mhtml --help"),
+        "short help must point to the full guide"
+    );
+    assert!(!short.contains("OUTPUT CONTRACT") && short.lines().count() < long.lines().count() / 3);
+}

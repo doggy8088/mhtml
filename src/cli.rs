@@ -25,37 +25,18 @@ impl Theme {
     }
 }
 
-/// Convert Markdown to a beautiful, self-contained HTML page.
-///
-/// With only INPUT, the page is written to a temporary file and opened in your
-/// default browser for a quick preview. With OUTPUT, the HTML file is written
-/// there instead.
-///
-/// Defaults can be set in a config file (see --print-config-path); command-line
-/// flags always take precedence over it.
+// The help texts live in assets/help-*.txt so they are easy to edit and review;
+// the tests below keep them in sync with the real flags, config keys and CSS.
 #[derive(Debug, Parser)]
 #[command(
     name = "mhtml",
     version,
-    about,
-    after_help = "\
-EXAMPLES:
-  mhtml README.md                       Preview in the default browser
-  mhtml README.md README.html           Write a standalone HTML file
-  mhtml README.md out.html --theme dark Dark theme
-  mhtml doc.md out.html --css my.css    Add your own stylesheet
-  cat doc.md | mhtml - -                Read from stdin, write to stdout
-  mhtml --init-config                   Create a commented config file
-
-CUSTOM STYLING:
-  The built-in style is driven by CSS custom properties (--mhtml-bg,
-  --mhtml-fg, --mhtml-accent, --mhtml-max-width, ...). Override them in a file
-  passed with --css, or use --accent / --width / --font / --font-size.
-
-CONFIG FILE:
-  Settings are read from config.toml in your OS config folder, or from the path
-  in --config / $MHTML_CONFIG. Precedence: built-in defaults < config file <
-  command-line flags."
+    about = "Convert Markdown to a beautiful, self-contained HTML page",
+    long_about = include_str!("../assets/help-long-about.txt"),
+    after_help = include_str!("../assets/help-after-short.txt"),
+    after_long_help = include_str!("../assets/help-after-long.txt"),
+    override_usage = "mhtml [OPTIONS] <INPUT> [OUTPUT]\n       mhtml --init-config | --print-config-path",
+    help_template = "{name} {version}\n{usage-heading} {usage}\n\n{about-with-newline}\n{all-args}\n{after-help}"
 )]
 pub struct Cli {
     /// Markdown file to convert ('-' reads from stdin)
@@ -189,5 +170,203 @@ pub fn toggle(on: bool, off: bool) -> Option<bool> {
         (true, _) => Some(true),
         (_, true) => Some(false),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod help_tests {
+    //! The help text is documentation for people *and* AI agents, so it must not
+    //! drift from the real flags, config keys, CSS variables and behavior.
+
+    use std::collections::BTreeSet;
+
+    use clap::CommandFactory;
+
+    use super::*;
+
+    const LONG_ABOUT: &str = include_str!("../assets/help-long-about.txt");
+    const AFTER_SHORT: &str = include_str!("../assets/help-after-short.txt");
+    const AFTER_LONG: &str = include_str!("../assets/help-after-long.txt");
+    const STYLE_CSS: &str = concat!(
+        include_str!("../assets/style.css"),
+        include_str!("../assets/theme-light.css"),
+        include_str!("../assets/theme-dark.css")
+    );
+    const CONFIG_TEMPLATE: &str = include_str!("../assets/config.toml");
+
+    fn all_help() -> String {
+        format!("{LONG_ABOUT}\n{AFTER_SHORT}\n{AFTER_LONG}")
+    }
+
+    /// Words that start with `prefix` and continue with `[a-z0-9-]`.
+    fn tokens(text: &str, prefix: &str) -> BTreeSet<String> {
+        let mut found = BTreeSet::new();
+        let mut rest = text;
+        while let Some(pos) = rest.find(prefix) {
+            let tail = &rest[pos..];
+            let len = tail
+                .char_indices()
+                .find(|&(i, c)| {
+                    i >= prefix.len() && !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+                })
+                .map_or(tail.len(), |(i, _)| i);
+            found.insert(tail[..len].trim_end_matches('-').to_string());
+            rest = &tail[len.max(prefix.len())..];
+        }
+        found
+    }
+
+    /// Splits a command line like a shell would for plain words and "double quotes".
+    fn split_words(line: &str) -> Vec<String> {
+        let (mut words, mut cur, mut quoted, mut any) = (Vec::new(), String::new(), false, false);
+        for c in line.chars() {
+            match c {
+                '"' => {
+                    quoted = !quoted;
+                    any = true;
+                }
+                c if c.is_whitespace() && !quoted => {
+                    if any || !cur.is_empty() {
+                        words.push(std::mem::take(&mut cur));
+                        any = false;
+                    }
+                }
+                c => cur.push(c),
+            }
+        }
+        if any || !cur.is_empty() {
+            words.push(cur);
+        }
+        words
+    }
+
+    #[test]
+    fn help_lines_fit_the_wrap_width() {
+        // clap re-wraps lines wider than 100 columns without hanging indents, which
+        // wrecks the layout of the examples and tables.
+        for (name, text) in [
+            ("long-about", LONG_ABOUT),
+            ("after-short", AFTER_SHORT),
+            ("after-long", AFTER_LONG),
+        ] {
+            for (n, line) in text.lines().enumerate() {
+                assert!(
+                    line.chars().count() <= 98,
+                    "{name}:{} is too wide: {line}",
+                    n + 1
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_example_command_parses() {
+        let mut checked = 0;
+        for text in [LONG_ABOUT, AFTER_LONG] {
+            for line in text.lines() {
+                let Some(cmd) = line.trim_start().strip_prefix("$ mhtml ") else {
+                    continue;
+                };
+                // Drop the trailing `   # comment`.
+                let cmd = cmd.split("  #").next().unwrap().trim();
+                let mut argv = vec!["mhtml".to_string()];
+                argv.extend(split_words(cmd));
+                Cli::try_parse_from(&argv)
+                    .unwrap_or_else(|e| panic!("example does not parse: {line}\n{e}"));
+                checked += 1;
+            }
+        }
+        assert!(checked >= 20, "only {checked} examples were checked");
+    }
+
+    #[test]
+    fn every_flag_in_the_help_exists() {
+        let command = Cli::command();
+        let real: BTreeSet<String> = command
+            .get_arguments()
+            .filter_map(|a| a.get_long().map(|l| format!("--{l}")))
+            .chain(["--help".to_string(), "--version".to_string()])
+            .collect();
+        for flag in tokens(&all_help(), "--") {
+            if flag.starts_with("--mhtml-") {
+                continue; // CSS custom property, not a flag
+            }
+            assert!(real.contains(&flag), "help mentions unknown flag {flag}");
+        }
+    }
+
+    #[test]
+    fn every_user_facing_flag_is_documented() {
+        let help = all_help();
+        let command = Cli::command();
+        for arg in command.get_arguments() {
+            let Some(long) = arg.get_long() else { continue };
+            if matches!(long, "help" | "version") {
+                continue;
+            }
+            assert!(
+                help.contains(&format!("--{long}")),
+                "--{long} is missing from the guide"
+            );
+        }
+    }
+
+    #[test]
+    fn css_variables_in_the_help_match_the_stylesheets() {
+        let documented = tokens(AFTER_LONG, "--mhtml-");
+        let defined: BTreeSet<String> = tokens(STYLE_CSS, "--mhtml-");
+        for var in &documented {
+            assert!(
+                defined.contains(var),
+                "help mentions {var}, which the CSS does not define"
+            );
+        }
+        for var in &defined {
+            assert!(
+                documented.contains(var),
+                "CSS defines {var}, which the help does not mention"
+            );
+        }
+    }
+
+    #[test]
+    fn config_keys_in_the_help_match_the_template() {
+        let keys: BTreeSet<&str> = CONFIG_TEMPLATE
+            .lines()
+            .filter_map(|l| l.strip_prefix("# "))
+            .filter_map(|l| l.split_once(" = ").map(|(k, _)| k.trim()))
+            .filter(|k| k.chars().all(|c| c.is_ascii_lowercase() || c == '_'))
+            .collect();
+        assert!(keys.len() >= 16, "template keys: {keys:?}");
+        let keys_line: String = AFTER_LONG
+            .lines()
+            .skip_while(|l| !l.trim_start().starts_with("Keys:"))
+            .take(2)
+            .collect::<Vec<_>>()
+            .join(" ");
+        for key in keys {
+            assert!(
+                keys_line.contains(key),
+                "config key `{key}` is missing from the help"
+            );
+        }
+    }
+
+    #[test]
+    fn the_guide_has_the_sections_agents_rely_on() {
+        let help = all_help();
+        for section in [
+            "QUICK START",
+            "RULES OF THUMB FOR AGENTS",
+            "OUTPUT CONTRACT",
+            "EXAMPLES",
+            "STYLING HOOKS",
+            "MARKDOWN SUPPORTED",
+            "CONFIG FILE",
+            "SECURITY",
+            "TROUBLESHOOTING",
+        ] {
+            assert!(help.contains(section), "missing section {section}");
+        }
     }
 }

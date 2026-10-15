@@ -1,0 +1,87 @@
+EXAMPLES
+  Basics
+    $ mhtml README.md README.html                       # simplest conversion
+    $ mhtml docs/guide.md dist/guide.html --title "User Guide" --lang en
+    $ mhtml README.md --no-open                         # prints /tmp/.../mhtml/README-1234.html
+    $ mhtml README.md README.html --open                # write the file, then open it
+  Themes and look
+    $ mhtml a.md a.html --theme light                   # light | dark | auto (default: follow OS)
+    $ mhtml a.md a.html --accent #e11d48 --width 70ch   # accent color, content column width
+    $ mhtml a.md a.html --font-size 18px --font Georgia,serif
+    $ mhtml a.md a.html --css brand.css                 # your CSS, applied after the built-in one
+    $ mhtml a.md a.html --css base.css --css extra.css  # repeatable; later files win
+    $ mhtml a.md a.html --css https://example.com/x.css  # URLs are linked, not inlined
+    $ mhtml a.md a.html --no-default-style --css all-mine.css   # start from zero
+  Content options
+    $ mhtml a.md a.html --toc --toc-title Contents      # table of contents after the first H1
+    $ mhtml a.md a.html --no-highlight --no-math        # plain code blocks, leave $ alone
+    $ mhtml a.md a.html --smart-punctuation             # curly quotes, dashes, ellipses
+    $ mhtml a.md a.html --unsafe-html                   # keep <script>/<iframe> (trusted input)
+    $ mhtml a.md a.html --base https://example.com/docs/    # resolve relative links against a URL
+  Pipelines
+    $ cat a.md | mhtml - -                              # stdin -> stdout
+    $ git show HEAD:README.md | mhtml - out.html        # stdin -> file
+  Config file
+    $ mhtml --print-config-path                         # where the config file lives
+    $ mhtml --init-config                               # create a commented template
+    $ mhtml a.md a.html --no-config                     # ignore it for this run
+    $ mhtml a.md a.html --config ./team.toml            # use a specific file
+
+STYLING HOOKS (put these in a --css file or in `custom_css`)
+  The built-in style is driven by CSS custom properties; overriding a few is usually enough:
+    :root { --mhtml-accent: #e11d48; --mhtml-max-width: 70ch; }
+    @media (prefers-color-scheme: dark) { :root { --mhtml-bg: #000; } }
+  Colors:  --mhtml-bg --mhtml-fg --mhtml-muted --mhtml-border --mhtml-accent --mhtml-code-bg
+           --mhtml-code-fg --mhtml-inline-code-bg --mhtml-quote-border --mhtml-table-stripe
+           --mhtml-mark --mhtml-note --mhtml-tip --mhtml-important --mhtml-warning --mhtml-caution
+  Layout:  --mhtml-font --mhtml-mono --mhtml-font-size --mhtml-line-height --mhtml-max-width
+           --mhtml-radius
+  Hooks:   <html data-theme="auto|light|dark">; content lives in <main class="markdown-body">;
+           the table of contents is <nav class="toc">; syntax tokens use .hl-* classes; alerts
+           are blockquote.markdown-alert-note|tip|important|warning|caution.
+  Flag shortcuts: --accent, --width, --font, --font-size set the matching variables.
+  Precedence (later wins): built-in style < flag shortcuts < config `css` < `custom_css` < --css.
+
+MARKDOWN SUPPORTED
+  Headings (anchors are generated, `{#custom-id}` works), emphasis, strikethrough, links,
+  images, lists, task lists, tables with alignment, blockquotes, GFM alerts (> [!NOTE]),
+  footnotes, definition lists, horizontal rules, fenced code with highlighting (put the
+  language after the ```), inline HTML (sanitized), YAML front matter (hidden; `title:` becomes
+  the page title), math: $inline$, $$block$$ and ```math fences (rendered as MathML, so no
+  JavaScript or fonts are needed).
+  Not supported: Mermaid/diagram blocks (they stay as code blocks), emoji shortcodes.
+
+CONFIG FILE
+  Optional TOML file in the OS config folder; every key mirrors a flag.
+  Precedence: built-in defaults < config file < command-line flags. Locations:
+    macOS    ~/Library/Application Support/mhtml/config.toml
+    Linux    $XDG_CONFIG_HOME/mhtml/config.toml  (usually ~/.config/mhtml/config.toml)
+    Windows  %APPDATA%\mhtml\config.toml
+  Override the path with --config <FILE> or $MHTML_CONFIG; skip it with --no-config.
+  Keys: theme, lang, width, font_size, font, accent, default_style, css (array), custom_css,
+        toc, toc_title, highlight, math, smart_punctuation, unsafe_html, open_browser.
+  On/off flags come in pairs (--toc / --no-toc, --highlight / --no-highlight, --math /
+  --no-math, --smart-punctuation / --no-smart-punctuation, --unsafe-html / --no-unsafe-html,
+  --default-style / --no-default-style) so a flag can override the config in either direction.
+  Unknown keys or bad values are rejected with an error that lists the valid keys.
+
+SECURITY
+  Raw HTML in Markdown is sanitized by default: <script>, event handlers (onerror=...),
+  javascript: links and similar are removed. --unsafe-html turns that off; use it only for
+  content you trust.
+  Custom CSS from files is embedded as-is; values for --accent/--width/--font/--font-size must
+  be plain CSS values (no braces, semicolons or angle brackets).
+
+TROUBLESHOOTING
+  A browser window opened          `mhtml file.md` had no OUTPUT. Pass OUTPUT or --no-open.
+  "same file as INPUT"             OUTPUT and INPUT are the same path. Choose another OUTPUT.
+  "failed to write ..."            The OUTPUT folder does not exist. Create it first.
+  Images missing in the output     Relative paths resolve next to the OUTPUT file. Put the HTML
+                                   next to the images, use absolute URLs, or pass --base.
+  Raw HTML / script / iframe gone  It was sanitized. Use --unsafe-html only for trusted content.
+  Code block has no colors         Add a language after the opening fence (```rust); unknown
+                                   languages and `text` stay plain.
+  Formula shown as red code        Unsupported LaTeX; the error is in the element's title.
+  Look differs from expectations   A config file is active: use --no-config to ignore it.
+  "invalid value for accent"       Flag values must be plain CSS values; put complex CSS in a
+                                   --css file.
