@@ -41,10 +41,10 @@ pub fn overrides_css(
 ) -> Result<Option<String>> {
     let mut decls = String::new();
     for (flag, var, value) in [
-        ("--accent", "--mhtml-accent", accent),
-        ("--width", "--mhtml-max-width", width),
-        ("--font", "--mhtml-font", font),
-        ("--font-size", "--mhtml-font-size", font_size),
+        ("accent", "--mhtml-accent", accent),
+        ("width", "--mhtml-max-width", width),
+        ("font", "--mhtml-font", font),
+        ("font-size", "--mhtml-font-size", font_size),
     ] {
         if let Some(value) = value {
             check_css_value(flag, value)?;

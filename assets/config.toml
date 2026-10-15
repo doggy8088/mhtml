@@ -1,0 +1,48 @@
+# mhtml configuration file
+#
+# Every option is optional. Command-line flags always override this file,
+# so you can keep your everyday look here and tweak a single run with flags.
+# Run `mhtml --print-config-path` to see where this file lives.
+
+# Color theme: "auto" (follow the system), "light" or "dark".
+# theme = "auto"
+
+# Value of <html lang="...">.
+# lang = "en"
+
+# Content column max width, any CSS length.
+# width = "860px"
+
+# Base font size and body font stack, any CSS value.
+# font_size = "16px"
+# font = "system-ui, sans-serif"
+
+# Accent color for links and highlights, any CSS color.
+# accent = "#0969da"
+
+# Include the built-in stylesheet. Set to false to style everything yourself.
+# default_style = true
+
+# Extra stylesheets: local files (relative paths are resolved from the folder
+# of this config file, "~/" is your home folder) or http(s) URLs.
+# They are applied in this order, then any --css given on the command line.
+# css = ["my-style.css", "https://example.com/extra.css"]
+
+# Inline CSS, applied after the stylesheets above.
+# custom_css = """
+# :root { --mhtml-max-width: 70ch; }
+# h1 { letter-spacing: .02em; }
+# """
+
+# Table of contents.
+# toc = false
+# toc_title = "Contents"
+
+# Content features.
+# highlight = true            # syntax highlighting for fenced code
+# math = true                 # $...$ and $$...$$ formulas
+# smart_punctuation = false   # curly quotes, dashes, ellipses
+# unsafe_html = false         # keep raw HTML as-is (scripts included)
+
+# Open the browser in preview mode (`mhtml file.md` without an output file).
+# open_browser = true

@@ -14,10 +14,13 @@ categories = ["command-line-utilities", "text-processing"]
 ammonia = "4.2.3"
 anyhow = "1.0.104"
 clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
+dirs = "7.0.0"
 latex2mathml = "0.2.3"
 open = "5.4.4"
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
+serde = { version = "1.0.229", features = ["derive"] }
 syntect = { version = "5.3.0", default-features = false, features = ["default-fancy", "html"] }
+toml = "1.1.8"
 two-face = "0.5.2"
 
 [profile.release]
