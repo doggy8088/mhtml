@@ -7,7 +7,7 @@
 
 use std::sync::LazyLock;
 
-use syntect::html::{css_for_theme_with_class_style, ClassStyle, ClassedHTMLGenerator};
+use syntect::html::{ClassStyle, ClassedHTMLGenerator, css_for_theme_with_class_style};
 use syntect::parsing::{SyntaxReference, SyntaxSet};
 use syntect::util::LinesWithEndings;
 use two_face::theme::EmbeddedThemeName;
@@ -24,7 +24,9 @@ pub fn highlight(info: &str, code: &str) -> Option<String> {
     let syntax = find_syntax(info)?;
     let mut generator = ClassedHTMLGenerator::new_with_class_style(syntax, &SYNTAXES, CLASS_STYLE);
     for line in LinesWithEndings::from(code) {
-        generator.parse_html_for_line_which_includes_newline(line).ok()?;
+        generator
+            .parse_html_for_line_which_includes_newline(line)
+            .ok()?;
     }
     Some(generator.finalize())
 }
@@ -101,7 +103,9 @@ mod tests {
 
     #[test]
     fn common_aliases_resolve() {
-        for lang in ["js", "ts", "tsx", "toml", "yaml", "sh", "bash", "csharp", "py", "json", "md"] {
+        for lang in [
+            "js", "ts", "tsx", "toml", "yaml", "sh", "bash", "csharp", "py", "json", "md",
+        ] {
             assert!(find_syntax(lang).is_some(), "{lang} not found");
         }
     }

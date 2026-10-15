@@ -9,10 +9,10 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use crate::cli::{toggle, Cli, Theme};
+use crate::cli::{Cli, Theme, toggle};
 use crate::style::{self, CssSource};
 
 /// Commented-out template written by `--init-config`.
@@ -72,9 +72,11 @@ pub fn default_path() -> Option<PathBuf> {
 /// `--config`, then `$MHTML_CONFIG`; `true` in the tuple means "asked for
 /// explicitly", so a missing file is an error rather than being skipped.
 fn requested_path(cli: &Cli) -> Option<PathBuf> {
-    cli.config
-        .clone()
-        .or_else(|| env::var_os("MHTML_CONFIG").filter(|v| !v.is_empty()).map(PathBuf::from))
+    cli.config.clone().or_else(|| {
+        env::var_os("MHTML_CONFIG")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+    })
 }
 
 pub fn load(cli: &Cli) -> Result<Loaded> {
@@ -91,16 +93,23 @@ pub fn load(cli: &Cli) -> Result<Loaded> {
 
     match fs::read_to_string(&path) {
         Ok(text) => Ok(Loaded {
-            config: parse(&text).with_context(|| format!("invalid config file {}", path.display()))?,
+            config: parse(&text)
+                .with_context(|| format!("invalid config file {}", path.display()))?,
             path: Some(path),
         }),
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound && !explicit => Ok(Loaded::default()),
-        Err(err) => Err(err).with_context(|| format!("failed to read config file {}", path.display())),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound && !explicit => {
+            Ok(Loaded::default())
+        }
+        Err(err) => {
+            Err(err).with_context(|| format!("failed to read config file {}", path.display()))
+        }
     }
 }
 
 pub fn parse(text: &str) -> Result<Config> {
-    Ok(toml::from_str(text.strip_prefix('\u{feff}').unwrap_or(text))?)
+    Ok(toml::from_str(
+        text.strip_prefix('\u{feff}').unwrap_or(text),
+    )?)
 }
 
 /// Writes the template to the default location (or `--config` / `$MHTML_CONFIG`)
@@ -168,7 +177,9 @@ pub fn resolve(cli: &Cli, loaded: Loaded) -> Result<Settings> {
         overrides,
         extra_css,
         toc_title: toc.then_some(toc_title),
-        highlight: toggle(cli.highlight, cli.no_highlight).or(cfg.highlight).unwrap_or(true),
+        highlight: toggle(cli.highlight, cli.no_highlight)
+            .or(cfg.highlight)
+            .unwrap_or(true),
         math: toggle(cli.math, cli.no_math).or(cfg.math).unwrap_or(true),
         smart_punctuation: toggle(cli.smart_punctuation, cli.no_smart_punctuation)
             .or(cfg.smart_punctuation)
@@ -186,10 +197,10 @@ fn resolve_css_spec(spec: &str, config_dir: Option<&Path>) -> String {
     if spec.starts_with("http://") || spec.starts_with("https://") {
         return spec.to_string();
     }
-    if let Some(rest) = spec.strip_prefix("~/") {
-        if let Some(home) = dirs::home_dir() {
-            return home.join(rest).to_string_lossy().into_owned();
-        }
+    if let Some(rest) = spec.strip_prefix("~/")
+        && let Some(home) = dirs::home_dir()
+    {
+        return home.join(rest).to_string_lossy().into_owned();
     }
     let path = Path::new(spec);
     match config_dir {
@@ -221,7 +232,16 @@ mod tests {
         // Uncommenting every option must also stay valid.
         let uncommented: String = TEMPLATE
             .lines()
-            .map(|l| l.strip_prefix("# ").filter(|r| r.contains(" = ") || r.starts_with(':') || r.starts_with("h1") || *r == "\"\"\"").unwrap_or(l))
+            .map(|l| {
+                l.strip_prefix("# ")
+                    .filter(|r| {
+                        r.contains(" = ")
+                            || r.starts_with(':')
+                            || r.starts_with("h1")
+                            || *r == "\"\"\""
+                    })
+                    .unwrap_or(l)
+            })
             .collect::<Vec<_>>()
             .join("\n");
         parse(&uncommented).unwrap_or_else(|e| panic!("{e}\n{uncommented}"));
@@ -238,7 +258,9 @@ mod tests {
 
     #[test]
     fn config_overrides_defaults() {
-        let l = loaded("theme = \"dark\"\nlang = \"zh-TW\"\ntoc = true\ntoc_title = \"目錄\"\nmath = false\naccent = \"#e11d48\"\nopen_browser = false\n");
+        let l = loaded(
+            "theme = \"dark\"\nlang = \"zh-TW\"\ntoc = true\ntoc_title = \"目錄\"\nmath = false\naccent = \"#e11d48\"\nopen_browser = false\n",
+        );
         let s = resolve(&cli(&["a.md"]), l).unwrap();
         assert_eq!(s.theme, Theme::Dark);
         assert_eq!(s.lang, "zh-TW");
@@ -249,9 +271,20 @@ mod tests {
 
     #[test]
     fn flags_override_config_in_both_directions() {
-        let l = loaded("theme = \"dark\"\ntoc = true\nhighlight = false\naccent = \"red\"\nopen_browser = false\n");
+        let l = loaded(
+            "theme = \"dark\"\ntoc = true\nhighlight = false\naccent = \"red\"\nopen_browser = false\n",
+        );
         let s = resolve(
-            &cli(&["a.md", "--theme", "light", "--no-toc", "--highlight", "--accent", "blue", "--open"]),
+            &cli(&[
+                "a.md",
+                "--theme",
+                "light",
+                "--no-toc",
+                "--highlight",
+                "--accent",
+                "blue",
+                "--open",
+            ]),
             l,
         )
         .unwrap();
@@ -286,9 +319,15 @@ mod tests {
     #[test]
     fn css_paths_resolve_relative_to_the_config_file() {
         let dir = Path::new("/cfg");
-        assert_eq!(resolve_css_spec("a.css", Some(dir)), Path::new("/cfg/a.css").to_string_lossy());
+        assert_eq!(
+            resolve_css_spec("a.css", Some(dir)),
+            Path::new("/cfg/a.css").to_string_lossy()
+        );
         assert_eq!(resolve_css_spec("/abs/a.css", Some(dir)), "/abs/a.css");
-        assert_eq!(resolve_css_spec("https://x/y.css", Some(dir)), "https://x/y.css");
+        assert_eq!(
+            resolve_css_spec("https://x/y.css", Some(dir)),
+            "https://x/y.css"
+        );
     }
 
     #[test]
@@ -301,7 +340,11 @@ mod tests {
             config: parse("css = [\"c.css\"]\ncustom_css = \"i{}\"").unwrap(),
             path: Some(dir.join("config.toml")),
         };
-        let s = resolve(&cli(&["a.md", "--css", dir.join("f.css").to_str().unwrap()]), l).unwrap();
+        let s = resolve(
+            &cli(&["a.md", "--css", dir.join("f.css").to_str().unwrap()]),
+            l,
+        )
+        .unwrap();
         let css: Vec<_> = s
             .extra_css
             .iter()

@@ -11,7 +11,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use clap::Parser;
 
 use crate::cli::Cli;
@@ -61,7 +61,9 @@ fn main() -> Result<()> {
         if !preview || input == "-" {
             return None;
         }
-        let dir = Path::new(input).parent().filter(|p| !p.as_os_str().is_empty());
+        let dir = Path::new(input)
+            .parent()
+            .filter(|p| !p.as_os_str().is_empty());
         Some(preview::dir_to_file_url(dir.unwrap_or(Path::new("."))))
     });
 
@@ -105,7 +107,9 @@ fn main() -> Result<()> {
 fn read_input(input: &str) -> Result<String> {
     let mut bytes = Vec::new();
     if input == "-" {
-        io::stdin().read_to_end(&mut bytes).context("failed to read stdin")?;
+        io::stdin()
+            .read_to_end(&mut bytes)
+            .context("failed to read stdin")?;
     } else {
         bytes = fs::read(input).with_context(|| format!("failed to read {input}"))?;
     }

@@ -47,15 +47,23 @@ impl Page<'_> {
                 "<style id=\"mhtml-theme\">\n{}</style>\n",
                 style::theme_css(self.theme, self.highlight)
             ));
-            head.push_str(&format!("<style id=\"mhtml-base\">\n{}</style>\n", style::BASE));
+            head.push_str(&format!(
+                "<style id=\"mhtml-base\">\n{}</style>\n",
+                style::BASE
+            ));
             if let Some(overrides) = &self.overrides {
-                head.push_str(&format!("<style id=\"mhtml-overrides\">\n{overrides}</style>\n"));
+                head.push_str(&format!(
+                    "<style id=\"mhtml-overrides\">\n{overrides}</style>\n"
+                ));
             }
         }
         for css in self.extra_css {
             match css {
                 CssSource::Link(url) => {
-                    head.push_str(&format!("<link rel=\"stylesheet\" href=\"{}\">\n", escape(url)));
+                    head.push_str(&format!(
+                        "<link rel=\"stylesheet\" href=\"{}\">\n",
+                        escape(url)
+                    ));
                 }
                 CssSource::Inline { name, css } => {
                     head.push_str(&format!(
@@ -115,6 +123,9 @@ mod tests {
     #[test]
     fn title_is_escaped() {
         assert!(page(None).contains("<title>t</title>"));
-        assert_eq!(escape("<a href=\"x\">&"), "&lt;a href=&quot;x&quot;&gt;&amp;");
+        assert_eq!(
+            escape("<a href=\"x\">&"),
+            "&lt;a href=&quot;x&quot;&gt;&amp;"
+        );
     }
 }

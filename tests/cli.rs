@@ -52,7 +52,12 @@ fn converts_markdown_file_to_html_file() {
     let md = dir.file("a.md", "# Hello\n\nworld **bold**\n");
     let out = dir.path().join("a.html");
 
-    let res = bin().arg("--no-config").arg(&md).arg(&out).output().unwrap();
+    let res = bin()
+        .arg("--no-config")
+        .arg(&md)
+        .arg(&out)
+        .output()
+        .unwrap();
     assert!(res.status.success(), "{}", stderr(&res));
 
     let html = fs::read_to_string(&out).unwrap();
@@ -73,7 +78,12 @@ fn reads_stdin_and_writes_stdout() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    child.stdin.take().unwrap().write_all("# 你好\n".as_bytes()).unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all("# 你好\n".as_bytes())
+        .unwrap();
     let res = child.wait_with_output().unwrap();
     assert!(res.status.success());
     let html = stdout(&res);
@@ -86,7 +96,12 @@ fn themes_switch_palettes() {
     let dir = Scratch::new("theme");
     let md = dir.file("a.md", "x\n");
     let run = |theme: &str| {
-        let res = bin().args(["--no-config", "-t", theme]).arg(&md).arg("-").output().unwrap();
+        let res = bin()
+            .args(["--no-config", "-t", theme])
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
         assert!(res.status.success(), "{}", stderr(&res));
         stdout(&res)
     };
@@ -94,7 +109,9 @@ fn themes_switch_palettes() {
     let dark = run("dark");
     assert!(dark.contains("data-theme=\"dark\"") && !dark.contains("prefers-color-scheme: dark"));
     let light = run("light");
-    assert!(light.contains("data-theme=\"light\"") && !light.contains("prefers-color-scheme: dark"));
+    assert!(
+        light.contains("data-theme=\"light\"") && !light.contains("prefers-color-scheme: dark")
+    );
     let auto = run("auto");
     assert!(auto.contains("data-theme=\"auto\"") && auto.contains("prefers-color-scheme: dark"));
 }
@@ -119,7 +136,9 @@ fn custom_css_files_and_urls_come_after_the_default_style() {
 
     let base = html.find("id=\"mhtml-base\"").unwrap();
     let inline = html.find("h1 { color: hotpink }").unwrap();
-    let link = html.find("<link rel=\"stylesheet\" href=\"https://example.com/x.css\">").unwrap();
+    let link = html
+        .find("<link rel=\"stylesheet\" href=\"https://example.com/x.css\">")
+        .unwrap();
     assert!(base < inline && inline < link);
     assert!(html.contains("--mhtml-accent: #e11d48;"));
     assert!(html.contains("--mhtml-max-width: 70ch;"));
@@ -145,9 +164,18 @@ fn no_default_style_leaves_only_user_css() {
 #[test]
 fn raw_html_is_sanitized_unless_unsafe() {
     let dir = Scratch::new("xss");
-    let md = dir.file("a.md", "<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n");
+    let md = dir.file(
+        "a.md",
+        "<script>alert(1)</script>\n\n<img src=x onerror=alert(1)>\n",
+    );
     let run = |extra: &[&str]| {
-        let res = bin().arg("--no-config").args(extra).arg(&md).arg("-").output().unwrap();
+        let res = bin()
+            .arg("--no-config")
+            .args(extra)
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
         stdout(&res)
     };
     let safe = run(&[]);
@@ -162,7 +190,12 @@ fn toc_math_and_highlight_work_together() {
         "a.md",
         "# T\n\n## Part\n\n$x^2$\n\n```rust\nfn main() {}\n```\n",
     );
-    let res = bin().args(["--no-config", "--toc", "--toc-title", "目錄"]).arg(&md).arg("-").output().unwrap();
+    let res = bin()
+        .args(["--no-config", "--toc", "--toc-title", "目錄"])
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
     let html = stdout(&res);
     assert!(html.contains("<strong>目錄</strong>"));
     assert!(html.contains("<a href=\"#part\">Part</a>"));
@@ -170,7 +203,12 @@ fn toc_math_and_highlight_work_together() {
     assert!(html.contains("<span class=\"hl-"));
     assert!(html.contains(".hl-"), "highlight css is embedded");
 
-    let res = bin().args(["--no-config", "--no-math", "--no-highlight"]).arg(&md).arg("-").output().unwrap();
+    let res = bin()
+        .args(["--no-config", "--no-math", "--no-highlight"])
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
     let html = stdout(&res);
     assert!(!html.contains("<msup>") && !html.contains("<span class=\"hl-"));
 }
@@ -179,7 +217,11 @@ fn toc_math_and_highlight_work_together() {
 fn preview_mode_writes_temp_file_with_base() {
     let dir = Scratch::new("preview");
     let md = dir.file("a.md", "# Preview\n\n[jump](#preview)\n");
-    let res = bin().args(["--no-config", "--no-open"]).arg(&md).output().unwrap();
+    let res = bin()
+        .args(["--no-config", "--no-open"])
+        .arg(&md)
+        .output()
+        .unwrap();
     assert!(res.status.success(), "{}", stderr(&res));
 
     let tmp = PathBuf::from(stdout(&res).trim());
@@ -201,7 +243,14 @@ fn config_file_is_applied_and_flags_override_it() {
     dir.file("extra.css", ".from-config{}");
 
     let run = |extra: &[&str]| {
-        let res = bin().arg("--config").arg(&cfg).args(extra).arg(&md).arg("-").output().unwrap();
+        let res = bin()
+            .arg("--config")
+            .arg(&cfg)
+            .args(extra)
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
         assert!(res.status.success(), "{}", stderr(&res));
         stdout(&res)
     };
@@ -209,7 +258,10 @@ fn config_file_is_applied_and_flags_override_it() {
     let html = run(&[]);
     assert!(html.contains("data-theme=\"dark\"") && html.contains("lang=\"zh-TW\""));
     assert!(html.contains("<strong>目錄</strong>"));
-    assert!(html.contains(".from-config{}"), "css is resolved next to the config file");
+    assert!(
+        html.contains(".from-config{}"),
+        "css is resolved next to the config file"
+    );
 
     let html = run(&["--theme", "light", "--no-toc", "--lang", "en"]);
     assert!(html.contains("data-theme=\"light\"") && html.contains("lang=\"en\""));
@@ -222,11 +274,27 @@ fn invalid_config_and_missing_explicit_config_fail_clearly() {
     let md = dir.file("a.md", "x\n");
     let bad = dir.file("bad.toml", "thme = \"dark\"\n");
 
-    let res = bin().arg("--config").arg(&bad).arg(&md).arg("-").output().unwrap();
+    let res = bin()
+        .arg("--config")
+        .arg(&bad)
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
     assert!(!res.status.success());
-    assert!(stderr(&res).contains("unknown field `thme`"), "{}", stderr(&res));
+    assert!(
+        stderr(&res).contains("unknown field `thme`"),
+        "{}",
+        stderr(&res)
+    );
 
-    let res = bin().arg("--config").arg(dir.path().join("missing.toml")).arg(&md).arg("-").output().unwrap();
+    let res = bin()
+        .arg("--config")
+        .arg(dir.path().join("missing.toml"))
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
     assert!(!res.status.success());
     assert!(stderr(&res).contains("failed to read config file"));
 }
@@ -251,7 +319,11 @@ fn init_config_creates_template_once_in_the_os_config_folder() {
     let path = PathBuf::from(stdout(&first).trim().strip_prefix("Created ").unwrap());
     assert!(path.starts_with(dir.path()), "{}", path.display());
     assert!(path.ends_with(Path::new("mhtml").join("config.toml")));
-    assert!(fs::read_to_string(&path).unwrap().contains("# theme = \"auto\""));
+    assert!(
+        fs::read_to_string(&path)
+            .unwrap()
+            .contains("# theme = \"auto\"")
+    );
 
     let printed = bin()
         .arg("--print-config-path")
@@ -269,7 +341,12 @@ fn init_config_creates_template_once_in_the_os_config_folder() {
 
 #[test]
 fn errors_for_missing_input_and_bad_flag_values() {
-    let res = bin().arg("--no-config").arg("/definitely/missing.md").arg("-").output().unwrap();
+    let res = bin()
+        .arg("--no-config")
+        .arg("/definitely/missing.md")
+        .arg("-")
+        .output()
+        .unwrap();
     assert!(!res.status.success());
     assert!(stderr(&res).contains("failed to read"));
 
@@ -288,7 +365,12 @@ fn errors_for_missing_input_and_bad_flag_values() {
 #[test]
 fn example_document_renders_every_feature() {
     let example = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/example.md");
-    let res = bin().args(["--no-config", "--toc"]).arg(&example).arg("-").output().unwrap();
+    let res = bin()
+        .args(["--no-config", "--toc"])
+        .arg(&example)
+        .arg("-")
+        .output()
+        .unwrap();
     assert!(res.status.success(), "{}", stderr(&res));
     let html = stdout(&res);
     for needle in [

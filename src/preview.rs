@@ -18,7 +18,11 @@ pub fn write_temp(html: &str, stem: &str) -> Result<PathBuf> {
     fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
     sweep(&dir);
 
-    let path = dir.join(format!("{}-{}.html", sanitize_stem(stem), std::process::id()));
+    let path = dir.join(format!(
+        "{}-{}.html",
+        sanitize_stem(stem),
+        std::process::id()
+    ));
     fs::write(&path, html).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(path)
 }
@@ -28,7 +32,9 @@ pub fn open_in_browser(path: &Path) -> Result<()> {
 }
 
 fn sweep(dir: &Path) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.flatten() {
         let old = entry
             .metadata()
@@ -45,7 +51,13 @@ fn sweep(dir: &Path) {
 fn sanitize_stem(stem: &str) -> String {
     let s: String = stem
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect();
     if s.is_empty() { "preview".into() } else { s }
 }
@@ -64,7 +76,9 @@ pub fn dir_to_file_url(dir: &Path) -> String {
     }
     for b in s.bytes() {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' | b':' => url.push(b as char),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' | b':' => {
+                url.push(b as char)
+            }
             _ => url.push_str(&format!("%{b:02X}")),
         }
     }

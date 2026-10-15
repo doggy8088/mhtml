@@ -6,7 +6,8 @@
 use std::collections::HashMap;
 
 use pulldown_cmark::{
-    html, CodeBlockKind, CowStr, Event, HeadingLevel, MetadataBlockKind, Options, Parser, Tag, TagEnd,
+    CodeBlockKind, CowStr, Event, HeadingLevel, MetadataBlockKind, Options, Parser, Tag, TagEnd,
+    html,
 };
 
 use crate::{highlight, page, sanitize};
@@ -52,7 +53,11 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
 
     let (events, front_matter_title) = strip_front_matter(events);
     let (events, headings) = assign_heading_ids(events);
-    let events = if opts.math { render_math(events) } else { events };
+    let events = if opts.math {
+        render_math(events)
+    } else {
+        events
+    };
     let (events, uses_highlight) = if opts.highlight {
         highlight_code_blocks(events)
     } else {
@@ -149,17 +154,17 @@ fn assign_heading_ids(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, Vec<Heading>) 
             }
             Event::Text(t) | Event::Code(t) if open_heading.is_some() => text.push_str(t),
             Event::End(TagEnd::Heading(level)) => {
-                if let Some(start) = open_heading.take() {
-                    if let Event::Start(Tag::Heading { id, .. }) = &mut out[start] {
-                        if id.is_none() {
-                            *id = Some(CowStr::from(unique_slug(&text, &mut seen)));
-                        }
-                        headings.push(Heading {
-                            level: *level,
-                            id: id.as_ref().map(|i| i.to_string()).unwrap_or_default(),
-                            text: text.trim().to_string(),
-                        });
+                if let Some(start) = open_heading.take()
+                    && let Event::Start(Tag::Heading { id, .. }) = &mut out[start]
+                {
+                    if id.is_none() {
+                        *id = Some(CowStr::from(unique_slug(&text, &mut seen)));
                     }
+                    headings.push(Heading {
+                        level: *level,
+                        id: id.as_ref().map(|i| i.to_string()).unwrap_or_default(),
+                        text: text.trim().to_string(),
+                    });
                 }
             }
             _ => {}
@@ -172,7 +177,10 @@ fn assign_heading_ids(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, Vec<Heading>) 
 /// Nested `<nav class="toc">` list. A lone H1 is the page title, so it is left
 /// out; the list goes down to H4.
 fn build_toc(headings: &[Heading], title: &str) -> String {
-    let h1_count = headings.iter().filter(|h| h.level == HeadingLevel::H1).count();
+    let h1_count = headings
+        .iter()
+        .filter(|h| h.level == HeadingLevel::H1)
+        .count();
     let min_level = if h1_count == 1 { 2 } else { 1 };
     let items: Vec<(usize, &Heading)> = headings
         .iter()
@@ -183,7 +191,10 @@ fn build_toc(headings: &[Heading], title: &str) -> String {
         return String::new();
     }
 
-    let mut html = format!("<nav class=\"toc\">\n<strong>{}</strong>\n", page::escape(title));
+    let mut html = format!(
+        "<nav class=\"toc\">\n<strong>{}</strong>\n",
+        page::escape(title)
+    );
     let mut stack: Vec<usize> = Vec::new();
     for (level, h) in items {
         while stack.last().is_some_and(|&top| top > level) {
@@ -213,7 +224,7 @@ fn build_toc(headings: &[Heading], title: &str) -> String {
 /// Converts `$…$`, `$$…$$` and ```` ```math ```` blocks to MathML, which every
 /// current browser renders natively, so no JavaScript or font files are needed.
 fn render_math(events: Vec<Event<'_>>) -> Vec<Event<'_>> {
-    use latex2mathml::{latex_to_mathml, DisplayStyle};
+    use latex2mathml::{DisplayStyle, latex_to_mathml};
 
     let convert = |latex: &str, style: DisplayStyle| -> Event<'static> {
         let html = latex_to_mathml(latex, style).unwrap_or_else(|err| {
@@ -234,7 +245,9 @@ fn render_math(events: Vec<Event<'_>>) -> Vec<Event<'_>> {
             Event::DisplayMath(latex) => {
                 out.push(convert(&latex, DisplayStyle::Block));
             }
-            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref info))) if info.trim() == "math" => {
+            Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(ref info)))
+                if info.trim() == "math" =>
+            {
                 let mut latex = String::new();
                 for inner in iter.by_ref() {
                     match inner {
@@ -326,7 +339,11 @@ fn slugify(text: &str) -> String {
             }
         })
         .collect();
-    if slug.is_empty() { "section".into() } else { slug }
+    if slug.is_empty() {
+        "section".into()
+    } else {
+        slug
+    }
 }
 
 #[cfg(test)]
@@ -338,7 +355,13 @@ mod tests {
     }
 
     fn highlighted(md: &str) -> Rendered {
-        render(md, &RenderOptions { highlight: true, ..Default::default() })
+        render(
+            md,
+            &RenderOptions {
+                highlight: true,
+                ..Default::default()
+            },
+        )
     }
 
     #[test]
@@ -383,7 +406,10 @@ mod tests {
 
     #[test]
     fn front_matter_is_hidden_and_supplies_title() {
-        let r = render("---\ntitle: \"My Doc\"\nauthor: x\n---\n\n# Heading\n", &RenderOptions::default());
+        let r = render(
+            "---\ntitle: \"My Doc\"\nauthor: x\n---\n\n# Heading\n",
+            &RenderOptions::default(),
+        );
         assert_eq!(r.title.as_deref(), Some("My Doc"));
         assert!(!r.body.contains("author"));
     }
@@ -402,7 +428,14 @@ mod tests {
         assert!(!safe.contains("onerror"), "{safe}");
         assert!(!safe.contains("javascript:"), "{safe}");
 
-        let raw = render(md, &RenderOptions { unsafe_html: true, ..Default::default() }).body;
+        let raw = render(
+            md,
+            &RenderOptions {
+                unsafe_html: true,
+                ..Default::default()
+            },
+        )
+        .body;
         assert!(raw.contains("<script>"));
     }
 
@@ -457,7 +490,10 @@ mod tests {
         let o = with(|o| o.toc_title = Some("目錄".into()));
         let body = render("# Title\n\n## A\n\n### A1\n\n## B & C\n", &o).body;
         let (title, rest) = body.split_once("</h1>").unwrap();
-        assert!(title.contains("Title") && rest.trim_start().starts_with("<nav class=\"toc\">"), "{body}");
+        assert!(
+            title.contains("Title") && rest.trim_start().starts_with("<nav class=\"toc\">"),
+            "{body}"
+        );
         assert!(body.contains("<strong>目錄</strong>"));
         assert!(body.contains("<a href=\"#a\">A</a>"), "{body}");
         assert!(body.contains("<a href=\"#a1\">A1</a>"), "{body}");
@@ -472,6 +508,10 @@ mod tests {
         let o = with(|o| o.toc_title = Some("x".into()));
         assert!(!render("just text\n", &o).body.contains("toc"));
         // Without a leading H1 the TOC goes first.
-        assert!(render("intro\n\n## A\n\n## B\n", &o).body.starts_with("<nav class=\"toc\">"));
+        assert!(
+            render("intro\n\n## A\n\n## B\n", &o)
+                .body
+                .starts_with("<nav class=\"toc\">")
+        );
     }
 }

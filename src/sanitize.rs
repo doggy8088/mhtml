@@ -11,17 +11,70 @@ use ammonia::Builder;
 /// can script or embed foreign content (`maction`, `mglyph`, `annotation-xml`,
 /// `semantics`) are deliberately left out.
 const MATHML_TAGS: &[&str] = &[
-    "math", "mrow", "mi", "mn", "mo", "ms", "mtext", "mspace", "msup", "msub", "msubsup", "mfrac",
-    "msqrt", "mroot", "mover", "munder", "munderover", "mtable", "mtr", "mtd", "mstyle", "mpadded",
-    "menclose", "merror", "mphantom", "mmultiscripts", "mprescripts", "none",
+    "math",
+    "mrow",
+    "mi",
+    "mn",
+    "mo",
+    "ms",
+    "mtext",
+    "mspace",
+    "msup",
+    "msub",
+    "msubsup",
+    "mfrac",
+    "msqrt",
+    "mroot",
+    "mover",
+    "munder",
+    "munderover",
+    "mtable",
+    "mtr",
+    "mtd",
+    "mstyle",
+    "mpadded",
+    "menclose",
+    "merror",
+    "mphantom",
+    "mmultiscripts",
+    "mprescripts",
+    "none",
 ];
 
 const MATHML_ATTRS: &[&str] = &[
-    "xmlns", "display", "mathvariant", "stretchy", "fence", "separator", "form", "accent",
-    "accentunder", "displaystyle", "scriptlevel", "linethickness", "lspace", "rspace", "minsize",
-    "maxsize", "mathsize", "movablelimits", "largeop", "symmetric", "width", "height", "depth",
-    "columnalign", "rowalign", "columnspacing", "rowspacing", "columnlines", "rowlines", "frame",
-    "notation", "columnspan", "rowspan",
+    "xmlns",
+    "display",
+    "mathvariant",
+    "stretchy",
+    "fence",
+    "separator",
+    "form",
+    "accent",
+    "accentunder",
+    "displaystyle",
+    "scriptlevel",
+    "linethickness",
+    "lspace",
+    "rspace",
+    "minsize",
+    "maxsize",
+    "mathsize",
+    "movablelimits",
+    "largeop",
+    "symmetric",
+    "width",
+    "height",
+    "depth",
+    "columnalign",
+    "rowalign",
+    "columnspacing",
+    "rowspacing",
+    "columnlines",
+    "rowlines",
+    "frame",
+    "notation",
+    "columnspan",
+    "rowspan",
 ];
 
 pub fn clean(html: &str) -> String {
@@ -73,7 +126,9 @@ mod tests {
 
     #[test]
     fn dangerous_mathml_is_removed() {
-        let out = clean("<math><maction actiontype=\"statusline\" onclick=\"alert(1)\"><mi>x</mi></maction></math>");
+        let out = clean(
+            "<math><maction actiontype=\"statusline\" onclick=\"alert(1)\"><mi>x</mi></maction></math>",
+        );
         assert!(!out.contains("maction"), "{out}");
         assert!(!out.contains("onclick"), "{out}");
     }

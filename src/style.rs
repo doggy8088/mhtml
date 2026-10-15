@@ -2,7 +2,7 @@
 
 use std::fs;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
 use crate::cli::Theme;
 use crate::highlight;
@@ -81,7 +81,8 @@ impl CssSource {
         if spec.starts_with("http://") || spec.starts_with("https://") {
             return Ok(CssSource::Link(spec.to_string()));
         }
-        let css = fs::read_to_string(spec).with_context(|| format!("failed to read CSS file {spec}"))?;
+        let css =
+            fs::read_to_string(spec).with_context(|| format!("failed to read CSS file {spec}"))?;
         Ok(CssSource::Inline {
             name: spec.to_string(),
             css,
@@ -125,7 +126,9 @@ mod tests {
         let auto = theme_css(Theme::Auto, true);
         assert!(auto.contains(".hl-"));
         // light palette only outside dark mode, dark palette only inside it
-        let (before_dark, dark) = auto.split_once("@media (prefers-color-scheme: dark)").unwrap();
+        let (before_dark, dark) = auto
+            .split_once("@media (prefers-color-scheme: dark)")
+            .unwrap();
         assert!(before_dark.contains("not all and (prefers-color-scheme: dark)"));
         assert!(before_dark.contains(".hl-") && dark.contains(".hl-"));
         assert!(auto.matches("  color-scheme: ").count() == 2);
@@ -135,7 +138,9 @@ mod tests {
 
     #[test]
     fn overrides_become_custom_properties() {
-        let css = overrides_css(Some("#e11d48"), Some("70ch"), None, None).unwrap().unwrap();
+        let css = overrides_css(Some("#e11d48"), Some("70ch"), None, None)
+            .unwrap()
+            .unwrap();
         assert!(css.contains("--mhtml-accent: #e11d48;"));
         assert!(css.contains("--mhtml-max-width: 70ch;"));
         assert!(overrides_css(None, None, None, None).unwrap().is_none());
