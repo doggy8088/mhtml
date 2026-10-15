@@ -1,0 +1,28 @@
+[package]
+name = "mhtml"
+version = "0.1.0"
+edition = "2024"
+description = "Convert Markdown to a beautiful, self-contained HTML page — preview in your browser, switch light/dark themes, and bring your own CSS."
+license = "MIT"
+authors = ["Will 保哥"]
+repository = "https://github.com/doggy8088/mhtml"
+readme = "README.md"
+keywords = ["markdown", "html", "cli", "preview"]
+categories = ["command-line-utilities", "text-processing"]
+
+[dependencies]
+ammonia = "4.2.3"
+anyhow = "1.0.104"
+clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
+latex2mathml = "0.2.3"
+open = "5.4.4"
+pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
+syntect = { version = "5.3.0", default-features = false, features = ["default-fancy", "html"] }
+two-face = "0.5.2"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
