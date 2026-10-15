@@ -389,3 +389,33 @@ fn example_document_renders_every_feature() {
         assert!(html.contains(needle), "missing {needle}");
     }
 }
+
+#[test]
+fn refuses_to_overwrite_the_input_file() {
+    let dir = Scratch::new("same");
+    let md = dir.file("a.md", "# keep me\n");
+
+    let res = bin().arg("--no-config").arg(&md).arg(&md).output().unwrap();
+    assert!(!res.status.success());
+    assert!(
+        stderr(&res).contains("same file as INPUT"),
+        "{}",
+        stderr(&res)
+    );
+    assert_eq!(
+        fs::read_to_string(&md).unwrap(),
+        "# keep me\n",
+        "source must be untouched"
+    );
+
+    // The same file reached through a different path is caught too.
+    let alias = dir.path().join(".").join("a.md");
+    let res = bin()
+        .arg("--no-config")
+        .arg(&md)
+        .arg(&alias)
+        .output()
+        .unwrap();
+    assert!(!res.status.success());
+    assert_eq!(fs::read_to_string(&md).unwrap(), "# keep me\n");
+}

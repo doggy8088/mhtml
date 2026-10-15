@@ -36,6 +36,10 @@ fn main() -> Result<()> {
     let settings = config::resolve(&cli, loaded)?;
     let input = cli.input.as_deref().context("missing INPUT file")?;
 
+    if let Some(out) = cli.output.as_deref() {
+        refuse_to_overwrite_input(input, out)?;
+    }
+
     let source = read_input(input)?;
     let rendered = render::render(
         &source,
@@ -98,6 +102,24 @@ fn main() -> Result<()> {
                 println!("{}", path.display());
             }
         }
+    }
+    Ok(())
+}
+
+/// Writing the HTML over the Markdown file it was made from would destroy the
+/// source, and a mistyped OUTPUT is an easy mistake (especially in scripts).
+fn refuse_to_overwrite_input(input: &str, output: &Path) -> Result<()> {
+    if input == "-" || output == Path::new("-") {
+        return Ok(());
+    }
+    // canonicalize needs the file to exist; a missing OUTPUT cannot be the input.
+    if let (Ok(i), Ok(o)) = (fs::canonicalize(input), fs::canonicalize(output))
+        && i == o
+    {
+        bail!(
+            "OUTPUT ({}) is the same file as INPUT; refusing to overwrite the Markdown source",
+            output.display()
+        );
     }
     Ok(())
 }
