@@ -5,7 +5,7 @@
 CHROME ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
 
 .PHONY: help build release run preview example screenshots test test-rust test-npm fmt fmt-check lint check \
-        install uninstall npm-pack version version-check tag clean
+        install uninstall npm-pack bump version version-check tag clean
 
 CARGO ?= cargo
 NPM   ?= npm
@@ -43,13 +43,16 @@ screenshots: release ## Regenerate docs/screenshot-{light,dark}.png (needs Chrom
 			--window-size=860,665 --screenshot=docs/screenshot-$$t.png "file://$(CURDIR)/target/shots/$$t.html"; \
 	done
 
-test: test-rust test-npm ## Run all tests
+test: test-rust test-npm test-scripts ## Run all tests
 
 test-rust: ## Rust unit and integration tests
 	$(CARGO) test --all-targets
 
 test-npm: ## npm wrapper tests
 	cd npm && $(NPM) test
+
+test-scripts: ## Release script tests
+	node --test scripts/*.test.js
 
 fmt: ## Format the code
 	$(CARGO) fmt
@@ -71,6 +74,12 @@ uninstall: ## Remove the cargo-installed mhtml
 npm-pack: ## Dry-run the npm package contents
 	cp LICENSE README.md npm/
 	cd npm && $(NPM) pack --dry-run; status=$$?; rm -f LICENSE README.md; exit $$status
+
+bump: ## Bump the version in Cargo.toml, npm/package.json and Cargo.lock: make bump LEVEL=patch|minor|major
+	@test -n "$(LEVEL)" || { echo "usage: make bump LEVEL=patch|minor|major"; exit 1; }
+	node scripts/bump-version.js $(LEVEL)
+	$(CARGO) check --quiet
+	@$(MAKE) --no-print-directory version-check
 
 version: ## Show the Cargo and npm versions
 	@echo "Cargo.toml:        $(CARGO_VERSION)"

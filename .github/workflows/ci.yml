@@ -43,6 +43,8 @@ jobs:
       - name: Test
         working-directory: npm
         run: npm test
+      - name: Release script tests
+        run: node --test scripts/*.test.js
       - name: Pack (dry run)
         working-directory: npm
         run: |
