@@ -1,0 +1,19 @@
+:root {
+  color-scheme: dark;
+  --mhtml-bg: #0d1117;
+  --mhtml-fg: #e6edf3;
+  --mhtml-muted: #9198a1;
+  --mhtml-border: #3d444d;
+  --mhtml-accent: #4493f8;
+  --mhtml-code-bg: #151b23;
+  --mhtml-code-fg: #e6edf3;
+  --mhtml-inline-code-bg: #262c36;
+  --mhtml-quote-border: #3d444d;
+  --mhtml-table-stripe: #151b23;
+  --mhtml-mark: #5a4a00;
+  --mhtml-note: #4493f8;
+  --mhtml-tip: #3fb950;
+  --mhtml-important: #ab7df8;
+  --mhtml-warning: #d29922;
+  --mhtml-caution: #f85149;
+}

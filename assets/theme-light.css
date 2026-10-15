@@ -1,0 +1,19 @@
+:root {
+  color-scheme: light;
+  --mhtml-bg: #ffffff;
+  --mhtml-fg: #1f2328;
+  --mhtml-muted: #59636e;
+  --mhtml-border: #d1d9e0;
+  --mhtml-accent: #0969da;
+  --mhtml-code-bg: #f6f8fa;
+  --mhtml-code-fg: #1f2328;
+  --mhtml-inline-code-bg: #eff1f3;
+  --mhtml-quote-border: #d1d9e0;
+  --mhtml-table-stripe: #f6f8fa;
+  --mhtml-mark: #fff8c5;
+  --mhtml-note: #0969da;
+  --mhtml-tip: #1a7f37;
+  --mhtml-important: #8250df;
+  --mhtml-warning: #9a6700;
+  --mhtml-caution: #cf222e;
+}

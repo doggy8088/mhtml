@@ -2,6 +2,7 @@ mod cli;
 mod page;
 mod render;
 mod sanitize;
+mod style;
 
 use std::fs;
 use std::io::{self, Read, Write};
@@ -11,6 +12,7 @@ use anyhow::{bail, Context, Result};
 use clap::Parser;
 
 use crate::cli::Cli;
+use crate::style::CssSource;
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -29,10 +31,26 @@ fn main() -> Result<()> {
         .clone()
         .or(rendered.title.clone())
         .unwrap_or_else(|| default_title(&cli.input));
+    let extra_css = cli
+        .css
+        .iter()
+        .map(|spec| CssSource::load(spec))
+        .collect::<Result<Vec<_>>>()?;
+    let overrides = style::overrides_css(
+        cli.accent.as_deref(),
+        cli.width.as_deref(),
+        cli.font.as_deref(),
+        cli.font_size.as_deref(),
+    )?;
     let html = page::Page {
         title: &title,
         lang: &cli.lang,
         body: &rendered.body,
+        theme: cli.theme,
+        base: cli.base.as_deref(),
+        default_style: !cli.no_default_style,
+        overrides,
+        extra_css: &extra_css,
     }
     .to_html();
 
