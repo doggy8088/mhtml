@@ -3,6 +3,18 @@
 use crate::cli::Theme;
 use crate::style::{self, CssSource};
 
+/// With `<base href>` set, `href="#id"` would resolve against the base URL and
+/// leave the page. This keeps in-page anchors (TOC, footnotes) working.
+const ANCHOR_FIX: &str = "<script>\n\
+document.addEventListener('click', function (e) {\n\
+  var a = e.target.closest && e.target.closest('a[href^=\"#\"]');\n\
+  if (!a || e.defaultPrevented) return;\n\
+  var id = decodeURIComponent(a.getAttribute('href').slice(1));\n\
+  var el = id ? document.getElementById(id) : document.documentElement;\n\
+  if (el) { e.preventDefault(); el.scrollIntoView(); }\n\
+});\n\
+</script>\n";
+
 pub struct Page<'a> {
     pub title: &'a str,
     pub lang: &'a str,
@@ -55,10 +67,11 @@ impl Page<'_> {
 
         format!(
             "<!doctype html>\n<html lang=\"{lang}\" data-theme=\"{theme}\">\n<head>\n{head}</head>\n\
-             <body>\n<main class=\"markdown-body\">\n{body}</main>\n</body>\n</html>\n",
+             <body>\n<main class=\"markdown-body\">\n{body}</main>\n{script}</body>\n</html>\n",
             lang = escape(self.lang),
             theme = self.theme.as_str(),
             body = self.body,
+            script = if self.base.is_some() { ANCHOR_FIX } else { "" },
         )
     }
 }
@@ -68,4 +81,37 @@ pub fn escape(s: &str) -> String {
         .replace('<', "&lt;")
         .replace('>', "&gt;")
         .replace('"', "&quot;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn page(base: Option<&str>) -> String {
+        Page {
+            title: "t",
+            lang: "en",
+            body: "<p>x</p>",
+            theme: Theme::Auto,
+            base,
+            default_style: false,
+            overrides: None,
+            extra_css: &[],
+        }
+        .to_html()
+    }
+
+    #[test]
+    fn anchor_fix_only_with_base() {
+        assert!(!page(None).contains("<script>"));
+        let with = page(Some("file:///a/"));
+        assert!(with.contains("<base href=\"file:///a/\">"));
+        assert!(with.contains("scrollIntoView"));
+    }
+
+    #[test]
+    fn title_is_escaped() {
+        assert!(page(None).contains("<title>t</title>"));
+        assert_eq!(escape("<a href=\"x\">&"), "&lt;a href=&quot;x&quot;&gt;&amp;");
+    }
 }

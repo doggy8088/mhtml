@@ -1,5 +1,6 @@
 mod cli;
 mod page;
+mod preview;
 mod render;
 mod sanitize;
 mod style;
@@ -8,7 +9,7 @@ use std::fs;
 use std::io::{self, Read, Write};
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 
 use crate::cli::Cli;
@@ -31,6 +32,16 @@ fn main() -> Result<()> {
         .clone()
         .or(rendered.title.clone())
         .unwrap_or_else(|| default_title(&cli.input));
+    // In preview mode the page lives in the temp folder, so point relative
+    // links and images back at the Markdown file's folder.
+    let preview = cli.output.is_none();
+    let base = cli.base.clone().or_else(|| {
+        if !preview || cli.input == "-" {
+            return None;
+        }
+        let dir = Path::new(&cli.input).parent().filter(|p| !p.as_os_str().is_empty());
+        Some(preview::dir_to_file_url(dir.unwrap_or(Path::new("."))))
+    });
     let extra_css = cli
         .css
         .iter()
@@ -47,7 +58,7 @@ fn main() -> Result<()> {
         lang: &cli.lang,
         body: &rendered.body,
         theme: cli.theme,
-        base: cli.base.as_deref(),
+        base: base.as_deref(),
         default_style: !cli.no_default_style,
         overrides,
         extra_css: &extra_css,
@@ -59,8 +70,19 @@ fn main() -> Result<()> {
         Some(out) => {
             fs::write(out, html).with_context(|| format!("failed to write {}", out.display()))?;
             eprintln!("Wrote {}", out.display());
+            if cli.open {
+                preview::open_in_browser(out)?;
+            }
         }
-        None => bail!("preview mode is not implemented yet; pass an OUTPUT file"),
+        None => {
+            let path = preview::write_temp(&html, &default_title(&cli.input))?;
+            if cli.no_open {
+                println!("{}", path.display());
+            } else {
+                eprintln!("Previewing {}", path.display());
+                preview::open_in_browser(&path)?;
+            }
+        }
     }
     Ok(())
 }
