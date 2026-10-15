@@ -3,9 +3,8 @@ name: Release
 # Push a tag like v0.1.0 to build binaries for every platform, attach them to a
 # GitHub Release and publish the `mhtml-cli` npm package.
 #
-# The npm step needs the repository secret NPM_TOKEN (a granular token with
-# read/write on packages and 2FA bypass). Without it the step is skipped, so
-# the first version can be published by hand with `npm publish`.
+# The npm step uses npm Trusted Publishing (OIDC), so no NPM_TOKEN secret is
+# needed. Provenance attestations are generated automatically.
 
 on:
   push:
@@ -99,22 +98,24 @@ jobs:
     name: Publish to npm
     needs: release
     runs-on: ubuntu-latest
+    # Trusted publishing (OIDC): npm verifies this workflow run instead of a
+    # stored token. The trust relationship is configured on npmjs.com (or with
+    # `npm trust github`) for repo doggy8088/mhtml and workflow release.yml.
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      - name: Use a recent npm (trusted publishing needs npm >= 11.5.1)
+        run: npm install -g npm@latest
       - name: Publish
         working-directory: npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           version=$(node -p "require('./package.json').version")
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::warning::NPM_TOKEN is not set; skipping npm publish (publish manually with 'npm publish')."
-            exit 0
-          fi
           if npm view "mhtml-cli@$version" version >/dev/null 2>&1; then
             echo "::notice::mhtml-cli@$version is already on npm; skipping."
             exit 0
