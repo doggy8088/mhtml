@@ -163,9 +163,11 @@ Markdown 允許夾帶原始 HTML。為了安全地預覽不可信的檔案，預
 ## 開發
 
 ```sh
-cargo test                       # 單元與整合測試
-cargo clippy --all-targets -- -D warnings
-cargo run -- examples/example.md # 預覽範例
+make help      # 列出所有常用任務
+make check     # fmt + clippy + 全部測試（等同 CI）
+make preview   # 在瀏覽器預覽 examples/example.md
+make release   # 最佳化建置 target/release/mhtml
+make tag       # 檢查版本一致後建立本機 vX.Y.Z tag
 ```
 
 發佈：同步更新 `Cargo.toml` 與 `npm/package.json` 的版本號，然後 `git tag vX.Y.Z && git push --tags`；GitHub Actions 會建置六個平台的執行檔、建立 Release 並發佈 npm 套件（需要儲存庫密鑰 `NPM_TOKEN`）。

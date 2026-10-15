@@ -105,9 +105,11 @@ Available: `--mhtml-bg`, `-fg`, `-muted`, `-border`, `-accent`, `-code-bg`, `-co
 ## Development
 
 ```sh
-cargo test
-cargo clippy --all-targets -- -D warnings
-cargo run -- examples/example.md
+make help      # list all common tasks
+make check     # fmt + clippy + all tests (same as CI)
+make preview   # preview examples/example.md in the browser
+make release   # optimized build at target/release/mhtml
+make tag       # verify versions, then create the local vX.Y.Z tag
 ```
 
 Release: bump the version in `Cargo.toml` and `npm/package.json`, then `git tag vX.Y.Z && git push --tags`. GitHub Actions builds six binaries, creates the Release and publishes the npm package (needs the `NPM_TOKEN` repository secret).
