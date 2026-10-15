@@ -26,6 +26,8 @@ fn main() -> Result<()> {
             smart_punctuation: cli.smart_punctuation,
             unsafe_html: cli.unsafe_html,
             highlight: !cli.no_highlight,
+            math: !cli.no_math,
+            toc_title: cli.toc.then(|| cli.toc_title.clone().unwrap_or_else(|| "Contents".into())),
         },
     );
 

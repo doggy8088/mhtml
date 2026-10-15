@@ -94,6 +94,10 @@ pub struct Cli {
     #[arg(long)]
     pub toc: bool,
 
+    /// Heading shown above the table of contents
+    #[arg(long, value_name = "TEXT")]
+    pub toc_title: Option<String>,
+
     /// Disable syntax highlighting of fenced code blocks
     #[arg(long)]
     pub no_highlight: bool,
