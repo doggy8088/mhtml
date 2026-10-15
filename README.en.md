@@ -10,6 +10,11 @@ mhtml README.md README.html        # write an HTML file
 mhtml README.md out.html --theme dark --css my.css
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/doggy8088/mhtml/main/docs/screenshot-light.png" alt="mhtml light theme" width="49%">
+  <img src="https://raw.githubusercontent.com/doggy8088/mhtml/main/docs/screenshot-dark.png" alt="mhtml dark theme" width="49%">
+</p>
+
 ## Features
 
 - **Instant preview** — give it just an input file and it opens the rendered page in your default browser (relative images keep working).

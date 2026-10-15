@@ -10,6 +10,11 @@ mhtml README.md README.html        # 輸出成 HTML 檔案
 mhtml README.md out.html --theme dark --css my.css
 ```
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/doggy8088/mhtml/main/docs/screenshot-light.png" alt="mhtml light theme" width="49%">
+  <img src="https://raw.githubusercontent.com/doggy8088/mhtml/main/docs/screenshot-dark.png" alt="mhtml dark theme" width="49%">
+</p>
+
 ## 特色
 
 - **預覽模式**：只給輸入檔，就會產生暫存 HTML 並用預設瀏覽器開啟（相對路徑的圖片仍可正常顯示）。

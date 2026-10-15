@@ -1,7 +1,10 @@
 # Common tasks for mhtml. Run `make` (or `make help`) to list them.
 
 .DEFAULT_GOAL := help
-.PHONY: help build release run preview example test test-rust test-npm fmt fmt-check lint check \
+# Chrome/Chromium used by `make screenshots` (override for other systems)
+CHROME ?= /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+.PHONY: help build release run preview example screenshots test test-rust test-npm fmt fmt-check lint check \
         install uninstall npm-pack version version-check tag clean
 
 CARGO ?= cargo
@@ -31,6 +34,14 @@ preview: ## Preview examples/example.md in the browser
 example: ## Render examples/example.md to target/example.html
 	@mkdir -p target
 	$(CARGO) run -q -- --no-config examples/example.md target/example.html --toc
+
+screenshots: release ## Regenerate docs/screenshot-{light,dark}.png (needs Chrome; set CHROME=...)
+	@mkdir -p target/shots
+	@for t in light dark; do \
+		./target/release/mhtml --no-config examples/screenshot.md target/shots/$$t.html --theme $$t --lang zh-TW && \
+		"$(CHROME)" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+			--window-size=860,665 --screenshot=docs/screenshot-$$t.png "file://$(CURDIR)/target/shots/$$t.html"; \
+	done
 
 test: test-rust test-npm ## Run all tests
 
