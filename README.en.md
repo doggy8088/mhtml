@@ -21,7 +21,7 @@ mhtml README.md out.html --theme dark --css my.css
 - **Light / dark themes** — `--theme auto|light|dark`; `auto` follows the system, no JavaScript involved.
 - **Easy styling** — CSS variables, shortcut flags, your own `.css` files, or a config file.
 - **Config file** — keep your preferences in the OS-standard config folder; command-line flags override it per run.
-- **Broad syntax support** — CommonMark, GFM (tables, task lists, strikethrough, footnotes, alerts), definition lists, front matter, syntax-highlighted code, LaTeX math (MathML, offline), Mermaid diagrams (embedded Ondine renderer, works offline), table of contents.
+- **Broad syntax support** — CommonMark, GFM (tables, task lists, strikethrough, footnotes, alerts), definition lists, front matter, syntax-highlighted code, LaTeX math (MathML, offline; tolerant of loose spacing such as `$ L $`), Mermaid diagrams (embedded Ondine renderer, works offline), table of contents.
 - **Safe by default** — output is sanitized (no `<script>`, `onerror`, `javascript:`…); opt out with `--unsafe-html`.
 - **Self-contained output** — CSS is inlined, no external dependencies.
 

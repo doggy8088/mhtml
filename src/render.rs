@@ -54,6 +54,14 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         parser_opts |= Options::ENABLE_SMART_PUNCTUATION;
     }
 
+    let normalized;
+    let source = if opts.math {
+        normalized = normalize_inline_math(source);
+        normalized.as_str()
+    } else {
+        source
+    };
+
     let events: Vec<Event> = Parser::new_ext(source, parser_opts).collect();
 
     let (events, front_matter_title) = strip_front_matter(events);
@@ -230,6 +238,171 @@ fn build_toc(headings: &[Heading], title: &str) -> String {
     }
     html.push_str("</nav>\n");
     html
+}
+
+/// Tolerant inline math: pulldown-cmark only recognizes `$...$` when the
+/// content does not start or end with whitespace, but people often write
+/// `$ L $`. Trim that padding when the content still looks like math, while
+/// leaving prices and prose alone. Code, display math and `\$` are untouched.
+fn normalize_inline_math(source: &str) -> String {
+    if !source.contains('$') {
+        return source.to_string();
+    }
+    let mut out = String::with_capacity(source.len());
+    let mut fence: Option<(char, usize)> = None;
+    let mut in_display = false;
+
+    for (index, line) in source.split('\n').enumerate() {
+        if index > 0 {
+            out.push('\n');
+        }
+        if let Some((marker, len)) = fence {
+            if let Some((ch, run)) = fence_marker(line)
+                && ch == marker
+                && run >= len
+            {
+                fence = None;
+            }
+            out.push_str(line);
+        } else if let Some((ch, run)) = fence_marker(line) {
+            fence = Some((ch, run));
+            out.push_str(line);
+        } else if in_display {
+            if line.trim_end().ends_with("$$") {
+                in_display = false;
+            }
+            out.push_str(line);
+        } else if let Some(rest) = display_math_start(line) {
+            if !rest.trim_end().ends_with("$$") {
+                in_display = true;
+            }
+            out.push_str(line);
+        } else if line.starts_with('\t') || line.starts_with("    ") {
+            out.push_str(line);
+        } else {
+            out.push_str(&normalize_math_line(line));
+        }
+    }
+    out
+}
+
+/// Up to three spaces or tabs, then three or more backticks or tildes.
+fn fence_marker(line: &str) -> Option<(char, usize)> {
+    let rest = line.trim_start_matches([' ', '\t']);
+    if line.len() - rest.len() > 3 {
+        return None;
+    }
+    let marker = rest.chars().next()?;
+    if marker != '`' && marker != '~' {
+        return None;
+    }
+    let len = rest.chars().take_while(|&c| c == marker).count();
+    (len >= 3).then_some((marker, len))
+}
+
+/// Text after a line-leading `$$`, when the indentation allows math.
+fn display_math_start(line: &str) -> Option<&str> {
+    let rest = line.trim_start_matches([' ', '\t']);
+    if line.len() - rest.len() > 3 {
+        return None;
+    }
+    rest.strip_prefix("$$")
+}
+
+/// Normalizes `$ ... $` pairs on one line, skipping code spans and escapes.
+fn normalize_math_line(line: &str) -> String {
+    if !line.contains('$') {
+        return line.to_string();
+    }
+
+    let mut out = String::with_capacity(line.len());
+    let mut i = 0;
+    while i < line.len() {
+        let rest = &line[i..];
+        let ch = rest.chars().next().unwrap();
+        match ch {
+            '\\' => {
+                let mut end = i + 1;
+                if let Some(next) = line[end..].chars().next() {
+                    end += next.len_utf8();
+                }
+                out.push_str(&line[i..end]);
+                i = end;
+            }
+            '`' => {
+                let run = rest.bytes().take_while(|&b| b == b'`').count();
+                let end = code_span_end(line, i + run, run).unwrap_or(i + run);
+                out.push_str(&line[i..end]);
+                i = end;
+            }
+            '$' => {
+                if let Some(close) = closing_dollar(line, i + 1) {
+                    out.push_str(&normalize_dollar_pair(&line[i + 1..close]));
+                    i = close + 1;
+                } else {
+                    out.push('$');
+                    i += 1;
+                }
+            }
+            _ => {
+                out.push(ch);
+                i += ch.len_utf8();
+            }
+        }
+    }
+    out
+}
+
+/// Byte offset just past a closing backtick run of exactly `len`, if any.
+fn code_span_end(line: &str, from: usize, len: usize) -> Option<usize> {
+    let bytes = line.as_bytes();
+    let mut i = from;
+    while i < bytes.len() {
+        if bytes[i] == b'`' {
+            let run = bytes[i..].iter().take_while(|&&b| b == b'`').count();
+            if run == len {
+                return Some(i + run);
+            }
+            i += run;
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
+/// Byte offset of the next unescaped `$` on the line.
+fn closing_dollar(line: &str, from: usize) -> Option<usize> {
+    let mut i = from;
+    while i < line.len() {
+        let ch = line[i..].chars().next()?;
+        match ch {
+            '\\' => {
+                i += 1;
+                if i < line.len() {
+                    i += line[i..].chars().next()?.len_utf8();
+                }
+            }
+            '$' => return Some(i),
+            _ => i += ch.len_utf8(),
+        }
+    }
+    None
+}
+
+/// Rebuilds a `$...$` pair, trimming padding only when the content looks like
+/// math. `$100 and then $` and `$ latex text here $` are prose, not formulas.
+fn normalize_dollar_pair(body: &str) -> String {
+    let trimmed = body.trim();
+    let padded = body.chars().next().is_some_and(char::is_whitespace)
+        || body.chars().last().is_some_and(char::is_whitespace);
+    let prose_like = trimmed.chars().any(char::is_whitespace)
+        && !trimmed.chars().any(|c| "\\{}^_=<>+-*/".contains(c));
+    if trimmed.is_empty() || !padded || prose_like {
+        format!("${body}$")
+    } else {
+        format!("${trimmed}$")
+    }
 }
 
 /// Converts `$…$`, `$$…$$` and ```` ```math ```` blocks to MathML, which every
@@ -568,6 +741,62 @@ mod tests {
         );
         assert!(!r.body.contains("<img"), "{}", r.body);
         assert!(r.body.contains("&lt;img"), "{}", r.body);
+    }
+
+    #[test]
+    fn loose_inline_math_delimiters_are_tolerated() {
+        let o = with(|o| o.math = true);
+        for md in [
+            "$ L $",
+            "$L $",
+            "$ L$",
+            "$ x^2 $",
+            "$ a + b $",
+            "$ \\frac{1}{2} $",
+        ] {
+            let html = render(md, &o).body;
+            assert_eq!(html.matches("<math").count(), 1, "{md}: {html}");
+            assert!(!html.contains('$'), "{md}: {html}");
+        }
+    }
+
+    #[test]
+    fn loose_math_keeps_prices_and_prose_literal() {
+        let o = with(|o| o.math = true);
+        let prose = render("價格 $100 元和 $200 元", &o).body;
+        assert!(!prose.contains("<math"), "{prose}");
+        assert!(prose.contains("$100 元和 $200 元"), "{prose}");
+
+        let sentence = render("$ latex text here $", &o).body;
+        assert!(!sentence.contains("<math"), "{sentence}");
+
+        let mixed = render("$100 and then $x$", &o).body;
+        assert_eq!(mixed.matches("<math").count(), 1, "{mixed}");
+        assert!(mixed.contains("$100 and then"), "{mixed}");
+    }
+
+    #[test]
+    fn loose_math_skips_code_escapes_and_display_math() {
+        let o = with(|o| o.math = true);
+        let html = render(
+            "`$ L $` and ``$ x $``\n\n```\n$ L $\n```\n\n    $ L $\n\n\\$ L \\$\n\n$$\n x^2 \n$$\n",
+            &o,
+        )
+        .body;
+        assert!(html.contains("<code>$ L $</code>"), "{html}");
+        assert!(html.contains("<code>$ x $</code>"), "{html}");
+        assert!(html.contains("$ L $\n</code>"), "{html}");
+        assert!(html.contains("display=\"block\""), "{html}");
+        assert_eq!(html.matches("<math").count(), 1, "{html}");
+    }
+
+    #[test]
+    fn adjacent_and_cjk_math_stay_intact() {
+        let o = with(|o| o.math = true);
+        let html = render("中文$L$中文 and $a$ and $b$", &o).body;
+        assert_eq!(html.matches("<math").count(), 3, "{html}");
+        assert!(html.contains("中文<math"), "{html}");
+        assert!(html.contains("</math>中文"), "{html}");
     }
 
     #[test]

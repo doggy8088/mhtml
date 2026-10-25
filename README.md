@@ -21,7 +21,7 @@ mhtml README.md out.html --theme dark --css my.css
 - **深色／淺色主題**：`--theme auto|light|dark`，`auto` 會跟隨系統設定，不需要 JavaScript。
 - **容易客製化樣式**：用 CSS 變數、快捷旗標、自訂 `.css` 檔或設定檔調整外觀。
 - **設定檔**：把常用偏好寫在 OS 標準設定資料夾，命令列旗標可隨時覆寫。
-- **常見語法幾乎都支援**：CommonMark、GFM（表格、任務清單、刪除線、腳註、Alerts）、定義清單、front matter、程式碼語法上色、LaTeX 數學公式（MathML，離線）、Mermaid 流程圖／時序圖等（內嵌 Ondine 渲染器，離線可用）、目錄。
+- **常見語法幾乎都支援**：CommonMark、GFM（表格、任務清單、刪除線、腳註、Alerts）、定義清單、front matter、程式碼語法上色、LaTeX 數學公式（MathML，離線，容許 `$ L $` 這種寬鬆寫法）、Mermaid 流程圖／時序圖等（內嵌 Ondine 渲染器，離線可用）、目錄。
 - **預設安全**：輸出會經過 sanitize，移除 `<script>`、`onerror`、`javascript:` 等；需要時可用 `--unsafe-html` 關閉。
 - **輸出自成一體**：CSS 內嵌，沒有外部相依，可直接寄送或存檔。
 

@@ -214,6 +214,23 @@ fn toc_math_and_highlight_work_together() {
 }
 
 #[test]
+fn loose_inline_math_and_cjk_adjacency_render() {
+    let dir = Scratch::new("loosemath");
+    let md = dir.file(
+        "a.md",
+        "中文$L$中文 and $ L $ and $ a + b $\n\n價格 $100 元和 $200 元\n",
+    );
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let html = stdout(&res);
+    assert_eq!(html.matches("<math").count(), 3, "{html}");
+    assert!(!html.contains("$ L $"), "{html}");
+    assert!(html.contains("$100 元和 $200 元"), "{html}");
+    assert!(html.contains("中文<math"), "{html}");
+    assert!(html.contains("</math>中文"), "{html}");
+}
+
+#[test]
 fn mermaid_diagrams_get_the_embedded_renderer() {
     let dir = Scratch::new("mermaid");
     let md = dir.file(

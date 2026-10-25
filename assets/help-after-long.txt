@@ -48,10 +48,10 @@ MARKDOWN SUPPORTED
   images, lists, task lists, tables with alignment, blockquotes, GFM alerts (> [!NOTE]),
   footnotes, definition lists, horizontal rules, fenced code with highlighting (put the
   language after the ```), inline HTML (sanitized), YAML front matter (hidden; `title:` becomes
-  the page title), math: $inline$, $$block$$ and ```math fences (rendered as MathML, so no
-  JavaScript or fonts are needed), Mermaid: ```mermaid fences (rendered in the browser by an
-  embedded Ondine renderer, so the page still works offline; the source stays visible when the
-  diagram is invalid).
+  the page title), math: $inline$ (loose padding such as `$ L $` is tolerated), $$block$$ and
+  ```math fences (rendered as MathML, so no JavaScript or fonts are needed), Mermaid:
+  ```mermaid fences (rendered in the browser by an embedded Ondine renderer, so the page still
+  works offline; the source stays visible when the diagram is invalid).
   Not supported: emoji shortcodes.
 
 CONFIG FILE
