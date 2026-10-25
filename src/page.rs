@@ -3,6 +3,11 @@
 use crate::cli::Theme;
 use crate::style::{self, CssSource};
 
+/// Ondine renderer, embedded only when the document has a Mermaid diagram.
+const MERMAID_JS: &str = include_str!("../assets/ondine/ondine.js");
+const MERMAID_BOOT: &str = include_str!("../assets/mermaid.js");
+const MERMAID_WASM: &[u8] = include_bytes!("../assets/ondine/all.generated.wasm");
+
 /// With `<base href>` set, `href="#id"` would resolve against the base URL and
 /// leave the page. This keeps in-page anchors (TOC, footnotes) working.
 const ANCHOR_FIX: &str = "<script>\n\
@@ -26,6 +31,8 @@ pub struct Page<'a> {
     pub default_style: bool,
     /// Include the syntax highlighting palette.
     pub highlight: bool,
+    /// Embed the Mermaid renderer (the body contains `.mermaid-diagram` blocks).
+    pub mermaid: bool,
     /// `:root { --mhtml-... }` block built from --accent/--width/...
     pub overrides: Option<String>,
     /// User stylesheets, emitted last so they win.
@@ -75,15 +82,67 @@ impl Page<'_> {
             }
         }
 
+        let mut scripts = String::new();
+        if self.base.is_some() {
+            scripts.push_str(ANCHOR_FIX);
+        }
+        if self.mermaid {
+            scripts
+                .push_str("<script type=\"application/octet-stream\" id=\"mhtml-mermaid-wasm\">");
+            scripts.push_str(&base64_encode(MERMAID_WASM));
+            scripts.push_str("</script>\n");
+            scripts.push_str("<script id=\"mhtml-mermaid-runtime\">\n");
+            scripts.push_str(&escape_script(MERMAID_JS));
+            scripts.push('\n');
+            scripts.push_str(&escape_script(MERMAID_BOOT));
+            scripts.push_str("</script>\n");
+        }
+
         format!(
             "<!doctype html>\n<html lang=\"{lang}\" data-theme=\"{theme}\">\n<head>\n{head}</head>\n\
-             <body>\n<main class=\"markdown-body\">\n{body}</main>\n{script}</body>\n</html>\n",
+             <body>\n<main class=\"markdown-body\">\n{body}</main>\n{scripts}</body>\n</html>\n",
             lang = escape(self.lang),
             theme = self.theme.as_str(),
             body = self.body,
-            script = if self.base.is_some() { ANCHOR_FIX } else { "" },
         )
     }
+}
+
+/// Standard base64 with padding, so the WASM can live in an inert `<script>`
+/// element without any character that HTML would treat specially.
+fn base64_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let second = chunk.get(1).copied().unwrap_or(0);
+        let third = chunk.get(2).copied().unwrap_or(0);
+        out.push(ALPHABET[(chunk[0] >> 2) as usize] as char);
+        out.push(ALPHABET[(((chunk[0] & 0x03) << 4) | (second >> 4)) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            ALPHABET[(((second & 0x0f) << 2) | (third >> 6)) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            ALPHABET[(third & 0x3f) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
+}
+
+/// Keeps embedded JavaScript from ending the `<script>` element early.
+fn escape_script(js: &str) -> String {
+    let mut out = String::with_capacity(js.len());
+    let mut rest = js;
+    while let Some(pos) = rest.to_ascii_lowercase().find("</script") {
+        out.push_str(&rest[..pos]);
+        out.push_str("<\\/script");
+        rest = &rest[pos + "</script".len()..];
+    }
+    out.push_str(rest);
+    out
 }
 
 pub fn escape(s: &str) -> String {
@@ -106,6 +165,7 @@ mod tests {
             base,
             default_style: false,
             highlight: false,
+            mermaid: false,
             overrides: None,
             extra_css: &[],
         }
@@ -127,5 +187,50 @@ mod tests {
             escape("<a href=\"x\">&"),
             "&lt;a href=&quot;x&quot;&gt;&amp;"
         );
+    }
+
+    #[test]
+    fn mermaid_renderer_is_embedded_only_when_asked() {
+        let plain = page(None);
+        assert!(!plain.contains("mhtml-mermaid-wasm"));
+        assert!(!plain.contains("Ondine"));
+
+        let with = Page {
+            title: "t",
+            lang: "en",
+            body: "<div class=\"mermaid-diagram\"></div>",
+            theme: Theme::Auto,
+            base: None,
+            default_style: false,
+            highlight: false,
+            mermaid: true,
+            overrides: None,
+            extra_css: &[],
+        }
+        .to_html();
+        assert!(with.contains("id=\"mhtml-mermaid-wasm\""), "{with}");
+        assert!(with.contains("Ondine.create"), "{with}");
+        assert!(with.contains("mermaid-diagram"), "{with}");
+    }
+
+    #[test]
+    fn base64_matches_the_rfc_vectors() {
+        for (input, expected) in [
+            ("", ""),
+            ("f", "Zg=="),
+            ("fo", "Zm8="),
+            ("foo", "Zm9v"),
+            ("foob", "Zm9vYg=="),
+            ("fooba", "Zm9vYmE="),
+            ("foobar", "Zm9vYmFy"),
+        ] {
+            assert_eq!(base64_encode(input.as_bytes()), expected);
+        }
+    }
+
+    #[test]
+    fn script_end_tags_are_neutralised() {
+        let out = escape_script("a</SCRIPT><script>x()</script>");
+        assert!(!out.to_ascii_lowercase().contains("</script"), "{out}");
     }
 }

@@ -15,6 +15,7 @@ EXAMPLES
   Content options
     $ mhtml a.md a.html --toc --toc-title Contents      # table of contents after the first H1
     $ mhtml a.md a.html --no-highlight --no-math        # plain code blocks, leave $ alone
+    $ mhtml a.md a.html --no-mermaid                     # keep Mermaid blocks as code
     $ mhtml a.md a.html --smart-punctuation             # curly quotes, dashes, ellipses
     $ mhtml a.md a.html --unsafe-html                   # keep <script>/<iframe> (trusted input)
     $ mhtml a.md a.html --base https://example.com/docs/    # resolve relative links against a URL
@@ -48,8 +49,10 @@ MARKDOWN SUPPORTED
   footnotes, definition lists, horizontal rules, fenced code with highlighting (put the
   language after the ```), inline HTML (sanitized), YAML front matter (hidden; `title:` becomes
   the page title), math: $inline$, $$block$$ and ```math fences (rendered as MathML, so no
-  JavaScript or fonts are needed).
-  Not supported: Mermaid/diagram blocks (they stay as code blocks), emoji shortcodes.
+  JavaScript or fonts are needed), Mermaid: ```mermaid fences (rendered in the browser by an
+  embedded Ondine renderer, so the page still works offline; the source stays visible when the
+  diagram is invalid).
+  Not supported: emoji shortcodes.
 
 CONFIG FILE
   Optional TOML file in the OS config folder; every key mirrors a flag.
@@ -59,10 +62,11 @@ CONFIG FILE
     Windows  %APPDATA%\mhtml\config.toml
   Override the path with --config <FILE> or $MHTML_CONFIG; skip it with --no-config.
   Keys: theme, lang, width, font_size, font, accent, default_style, css (array), custom_css,
-        toc, toc_title, highlight, math, smart_punctuation, unsafe_html, open_browser.
+        toc, toc_title, highlight, math, mermaid, smart_punctuation, unsafe_html, open_browser.
   On/off flags come in pairs (--toc / --no-toc, --highlight / --no-highlight, --math /
-  --no-math, --smart-punctuation / --no-smart-punctuation, --unsafe-html / --no-unsafe-html,
-  --default-style / --no-default-style) so a flag can override the config in either direction.
+  --no-math, --mermaid / --no-mermaid, --smart-punctuation / --no-smart-punctuation,
+  --unsafe-html / --no-unsafe-html, --default-style / --no-default-style) so a flag can
+  override the config in either direction.
   Unknown keys or bad values are rejected with an error that lists the valid keys.
 
 SECURITY
@@ -71,6 +75,8 @@ SECURITY
   content you trust.
   Custom CSS from files is embedded as-is; values for --accent/--width/--font/--font-size must
   be plain CSS values (no braces, semicolons or angle brackets).
+  Mermaid SVGs are sanitized before they are inserted: scripts, event handlers and javascript:
+  links are removed.
 
 TROUBLESHOOTING
   A browser window opened          `mhtml file.md` had no OUTPUT. Pass OUTPUT or --no-open.
@@ -82,6 +88,8 @@ TROUBLESHOOTING
   Code block has no colors         Add a language after the opening fence (```rust); unknown
                                    languages and `text` stay plain.
   Formula shown as red code        Unsupported LaTeX; the error is in the element's title.
+  Diagram stays a code block       JavaScript is off or the Mermaid source is invalid; the
+                                   error appears above the source.
   Look differs from expectations   A config file is active: use --no-config to ignore it.
   "invalid value for accent"       Flag values must be plain CSS values; put complex CSS in a
                                    --css file.

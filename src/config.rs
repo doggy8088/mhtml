@@ -36,6 +36,7 @@ pub struct Config {
     pub toc_title: Option<String>,
     pub highlight: Option<bool>,
     pub math: Option<bool>,
+    pub mermaid: Option<bool>,
     pub smart_punctuation: Option<bool>,
     pub unsafe_html: Option<bool>,
     pub open_browser: Option<bool>,
@@ -59,6 +60,7 @@ pub struct Settings {
     pub toc_title: Option<String>,
     pub highlight: bool,
     pub math: bool,
+    pub mermaid: bool,
     pub smart_punctuation: bool,
     pub unsafe_html: bool,
     pub preview_open: bool,
@@ -181,6 +183,9 @@ pub fn resolve(cli: &Cli, loaded: Loaded) -> Result<Settings> {
             .or(cfg.highlight)
             .unwrap_or(true),
         math: toggle(cli.math, cli.no_math).or(cfg.math).unwrap_or(true),
+        mermaid: toggle(cli.mermaid, cli.no_mermaid)
+            .or(cfg.mermaid)
+            .unwrap_or(true),
         smart_punctuation: toggle(cli.smart_punctuation, cli.no_smart_punctuation)
             .or(cfg.smart_punctuation)
             .unwrap_or(false),
@@ -252,20 +257,20 @@ mod tests {
         let s = resolve(&cli(&["a.md"]), Loaded::default()).unwrap();
         assert_eq!(s.theme, Theme::Auto);
         assert_eq!(s.lang, "en");
-        assert!(s.default_style && s.highlight && s.math && s.preview_open);
+        assert!(s.default_style && s.highlight && s.math && s.mermaid && s.preview_open);
         assert!(!s.smart_punctuation && !s.unsafe_html && s.toc_title.is_none());
     }
 
     #[test]
     fn config_overrides_defaults() {
         let l = loaded(
-            "theme = \"dark\"\nlang = \"zh-TW\"\ntoc = true\ntoc_title = \"目錄\"\nmath = false\naccent = \"#e11d48\"\nopen_browser = false\n",
+            "theme = \"dark\"\nlang = \"zh-TW\"\ntoc = true\ntoc_title = \"目錄\"\nmath = false\nmermaid = false\naccent = \"#e11d48\"\nopen_browser = false\n",
         );
         let s = resolve(&cli(&["a.md"]), l).unwrap();
         assert_eq!(s.theme, Theme::Dark);
         assert_eq!(s.lang, "zh-TW");
         assert_eq!(s.toc_title.as_deref(), Some("目錄"));
-        assert!(!s.math && !s.preview_open);
+        assert!(!s.math && !s.mermaid && !s.preview_open);
         assert!(s.overrides.unwrap().contains("--mhtml-accent: #e11d48;"));
     }
 

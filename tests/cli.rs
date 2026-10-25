@@ -214,6 +214,47 @@ fn toc_math_and_highlight_work_together() {
 }
 
 #[test]
+fn mermaid_diagrams_get_the_embedded_renderer() {
+    let dir = Scratch::new("mermaid");
+    let md = dir.file(
+        "a.md",
+        "# Diagrams\n\n```mermaid\nflowchart LR\n  A --> B\n```\n",
+    );
+    let run = |extra: &[&str]| {
+        let res = bin()
+            .arg("--no-config")
+            .args(extra)
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
+        assert!(res.status.success(), "{}", stderr(&res));
+        stdout(&res)
+    };
+
+    let html = run(&[]);
+    assert!(html.contains("<div class=\"mermaid-diagram\">"), "{html}");
+    assert!(html.contains("language-mermaid"), "{html}");
+    assert!(html.contains("A --&gt; B"), "{html}");
+    assert!(html.contains("id=\"mhtml-mermaid-wasm\""), "{html}");
+    assert!(html.contains(">AGFzbQ"), "the WASM is embedded: {html}");
+    assert!(html.contains("Ondine.create"), "{html}");
+    assert!(
+        html.contains("querySelectorAll('.mermaid-diagram')"),
+        "{html}"
+    );
+
+    let plain = run(&["--no-mermaid"]);
+    assert!(
+        !plain.contains("<div class=\"mermaid-diagram\">"),
+        "{plain}"
+    );
+    assert!(!plain.contains("mhtml-mermaid-wasm"), "{plain}");
+    assert!(plain.contains("language-mermaid"), "{plain}");
+    assert!(plain.contains("A --&gt; B"), "{plain}");
+}
+
+#[test]
 fn preview_mode_writes_temp_file_with_base() {
     let dir = Scratch::new("preview");
     let md = dir.file("a.md", "# Preview\n\n[jump](#preview)\n");
@@ -385,6 +426,8 @@ fn example_document_renders_every_feature() {
         "<dl>",
         "class=\"toc\"",
         "<span class=\"hl-",
+        "class=\"mermaid-diagram\"",
+        "id=\"mhtml-mermaid-wasm\"",
     ] {
         assert!(html.contains(needle), "missing {needle}");
     }

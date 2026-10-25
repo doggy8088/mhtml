@@ -146,6 +146,30 @@ details[open] > summary { margin-bottom: 0.5em; }
 math { font-size: 1.1em; }
 math[display="block"] { display: block math; margin: 1em 0; text-align: center; }
 
+/* Mermaid diagrams (the embedded renderer swaps the source for an SVG) */
+.mermaid-diagram { margin: 1.5em 0; overflow-x: auto; text-align: center; }
+.mermaid-diagram .ondine {
+  --ondine-bg: var(--mhtml-bg);
+  --ondine-fg: var(--mhtml-fg);
+  --ondine-muted: var(--mhtml-muted);
+  --ondine-border: var(--mhtml-border);
+  --ondine-surface: var(--mhtml-bg);
+  --ondine-surface-alt: var(--mhtml-code-bg);
+  --ondine-accent: var(--mhtml-accent);
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.mermaid-diagram pre { margin: 0; text-align: left; }
+.mermaid-diagram .mermaid-error-message {
+  margin-bottom: 0.5em;
+  color: var(--mhtml-caution);
+  font-size: 0.9em;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
 /* Footnotes */
 sup.footnote-reference { font-size: 0.75em; line-height: 0; }
 .footnote-definition { display: flex; gap: 0.5em; margin: 0 0 0.5em; font-size: 0.9em; color: var(--mhtml-muted); }
@@ -173,5 +197,6 @@ nav.toc li { margin: 0.15em 0; }
   html, body { background: #fff; color: #000; }
   .markdown-body { max-width: none; padding: 0; }
   pre, blockquote, table, img { break-inside: avoid; }
+  .mermaid-diagram { break-inside: avoid; }
   a { color: inherit; text-decoration: underline; }
 }

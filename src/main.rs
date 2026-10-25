@@ -48,6 +48,7 @@ fn main() -> Result<()> {
             unsafe_html: settings.unsafe_html,
             highlight: settings.highlight,
             math: settings.math,
+            mermaid: settings.mermaid,
             toc_title: settings.toc_title.clone(),
         },
     );
@@ -79,6 +80,7 @@ fn main() -> Result<()> {
         base: base.as_deref(),
         default_style: settings.default_style,
         highlight: rendered.uses_highlight,
+        mermaid: rendered.uses_mermaid,
         overrides: settings.overrides,
         extra_css: &settings.extra_css,
     }

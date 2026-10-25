@@ -115,6 +115,14 @@ pub struct Cli {
     #[arg(long, hide = true, overrides_with = "no_math")]
     pub math: bool,
 
+    /// Disable Mermaid diagram rendering
+    #[arg(long, overrides_with = "mermaid")]
+    pub no_mermaid: bool,
+
+    /// Enable Mermaid diagram rendering (to undo `mermaid = false` in the config)
+    #[arg(long, hide = true, overrides_with = "no_mermaid")]
+    pub mermaid: bool,
+
     /// Turn on smart punctuation (curly quotes, en/em dashes, ellipses)
     #[arg(long, overrides_with = "no_smart_punctuation")]
     pub smart_punctuation: bool,

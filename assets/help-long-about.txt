@@ -1,6 +1,6 @@
 Convert Markdown to a beautiful, self-contained HTML page: one file, CSS inlined, works offline.
 Supports CommonMark + GFM (tables, task lists, footnotes, alerts), code highlighting, LaTeX math,
-front matter, light/dark themes and custom CSS.
+Mermaid diagrams, front matter, light/dark themes and custom CSS.
 
 QUICK START (for people and AI agents)
   Scriptable, non-interactive (never opens a browser) - use these in automation:

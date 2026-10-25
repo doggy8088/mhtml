@@ -18,6 +18,8 @@ pub struct RenderOptions {
     pub unsafe_html: bool,
     pub highlight: bool,
     pub math: bool,
+    /// Render ```mermaid fences with the embedded Ondine renderer.
+    pub mermaid: bool,
     /// Prepend a table of contents with this heading text.
     pub toc_title: Option<String>,
 }
@@ -31,6 +33,9 @@ pub struct Rendered {
     /// True when at least one code block was highlighted (so the highlight CSS
     /// is needed).
     pub uses_highlight: bool,
+    /// True when at least one Mermaid diagram is present (so the renderer is
+    /// embedded in the page).
+    pub uses_mermaid: bool,
 }
 
 pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
@@ -57,6 +62,11 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         render_math(events)
     } else {
         events
+    };
+    let (events, uses_mermaid) = if opts.mermaid {
+        render_mermaid(events)
+    } else {
+        (events, false)
     };
     let (events, uses_highlight) = if opts.highlight {
         highlight_code_blocks(events)
@@ -92,6 +102,7 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         body,
         title: front_matter_title.or(heading_title),
         uses_highlight,
+        uses_mermaid,
     }
 }
 
@@ -262,6 +273,42 @@ fn render_math(events: Vec<Event<'_>>) -> Vec<Event<'_>> {
         }
     }
     out
+}
+
+/// Replaces ```` ```mermaid ```` fences with a wrapper that the embedded
+/// renderer turns into an SVG in the browser. The source is escaped, so the
+/// page stays safe even with `--unsafe-html`, and it stays visible until (or
+/// instead of) rendering.
+fn render_mermaid(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, bool) {
+    let mut out = Vec::with_capacity(events.len());
+    let mut used = false;
+    let mut iter = events.into_iter();
+
+    while let Some(event) = iter.next() {
+        let Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(info))) = &event else {
+            out.push(event);
+            continue;
+        };
+        if info.split_whitespace().next() != Some("mermaid") {
+            out.push(event);
+            continue;
+        }
+
+        let mut source = String::new();
+        for inner in iter.by_ref() {
+            match inner {
+                Event::End(TagEnd::CodeBlock) => break,
+                Event::Text(t) => source.push_str(&t),
+                _ => {}
+            }
+        }
+        used = true;
+        out.push(Event::Html(CowStr::from(format!(
+            "<div class=\"mermaid-diagram\"><pre><code class=\"language-mermaid\">{}</code></pre></div>\n",
+            page::escape(&source)
+        ))));
+    }
+    (out, used)
 }
 
 /// Replaces fenced code blocks that have a known language with pre-highlighted
@@ -483,6 +530,44 @@ mod tests {
         assert!(!off.contains("<math"), "{off}");
         let money = render("It costs $5 and $6.", &with(|o| o.math = true)).body;
         assert!(!money.contains("<math"), "{money}");
+    }
+
+    #[test]
+    fn mermaid_fences_become_diagram_wrappers() {
+        let o = with(|o| o.mermaid = true);
+        let r = render(
+            "```mermaid title=\"Flow\"\nflowchart LR\n  A --> B\n```\n",
+            &o,
+        );
+        assert!(r.uses_mermaid);
+        assert!(
+            r.body.contains("<div class=\"mermaid-diagram\">"),
+            "{}",
+            r.body
+        );
+        assert!(r.body.contains("language-mermaid"), "{}", r.body);
+        assert!(r.body.contains("A --&gt; B"), "{}", r.body);
+    }
+
+    #[test]
+    fn mermaid_is_off_by_default_and_keeps_the_code_block() {
+        let md = "```mermaid\nflowchart LR\n  A --> B\n```\n";
+        let r = render(md, &RenderOptions::default());
+        assert!(!r.uses_mermaid);
+        assert!(!r.body.contains("mermaid-diagram"), "{}", r.body);
+        assert!(r.body.contains("language-mermaid"), "{}", r.body);
+        assert!(r.body.contains("A --&gt; B"), "{}", r.body);
+    }
+
+    #[test]
+    fn mermaid_source_is_escaped() {
+        let o = with(|o| o.mermaid = true);
+        let r = render(
+            "```mermaid\nA[<img src=x onerror=alert(1)>] --> B\n```\n",
+            &o,
+        );
+        assert!(!r.body.contains("<img"), "{}", r.body);
+        assert!(r.body.contains("&lt;img"), "{}", r.body);
     }
 
     #[test]

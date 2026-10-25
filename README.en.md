@@ -21,7 +21,7 @@ mhtml README.md out.html --theme dark --css my.css
 - **Light / dark themes** — `--theme auto|light|dark`; `auto` follows the system, no JavaScript involved.
 - **Easy styling** — CSS variables, shortcut flags, your own `.css` files, or a config file.
 - **Config file** — keep your preferences in the OS-standard config folder; command-line flags override it per run.
-- **Broad syntax support** — CommonMark, GFM (tables, task lists, strikethrough, footnotes, alerts), definition lists, front matter, syntax-highlighted code, LaTeX math (MathML, offline), table of contents.
+- **Broad syntax support** — CommonMark, GFM (tables, task lists, strikethrough, footnotes, alerts), definition lists, front matter, syntax-highlighted code, LaTeX math (MathML, offline), Mermaid diagrams (embedded Ondine renderer, works offline), table of contents.
 - **Safe by default** — output is sanitized (no `<script>`, `onerror`, `javascript:`…); opt out with `--unsafe-html`.
 - **Self-contained output** — CSS is inlined, no external dependencies.
 
@@ -55,7 +55,7 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 | `mhtml - -` | stdin → stdout, e.g. `cat a.md \| mhtml - -` |
 | `mhtml a.md --no-open` | Preview mode without opening; prints the temp file path |
 
-Main flags: `-t/--theme`, `-c/--css <FILE|URL>` (repeatable), `--no-default-style`, `--accent`, `--width`, `--font`, `--font-size`, `--title`, `--lang`, `--toc`, `--toc-title`, `--no-highlight`, `--no-math`, `--smart-punctuation`, `--unsafe-html`, `--base`, `--config`, `--no-config`, `--init-config`, `--print-config-path`. Run `mhtml --help` for details. Every on/off flag has an opposite (`--toc` / `--no-toc`) so a single run can override the config file.
+Main flags: `-t/--theme`, `-c/--css <FILE|URL>` (repeatable), `--no-default-style`, `--accent`, `--width`, `--font`, `--font-size`, `--title`, `--lang`, `--toc`, `--toc-title`, `--no-highlight`, `--no-math`, `--no-mermaid`, `--smart-punctuation`, `--unsafe-html`, `--base`, `--config`, `--no-config`, `--init-config`, `--print-config-path`. Run `mhtml --help` for details. Every on/off flag has an opposite (`--toc` / `--no-toc`) so a single run can override the config file.
 
 ## Config file
 
@@ -82,6 +82,7 @@ toc = true
 toc_title = "Contents"
 highlight = true
 math = true
+mermaid = true
 smart_punctuation = false
 unsafe_html = false
 default_style = true

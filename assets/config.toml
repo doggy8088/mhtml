@@ -41,6 +41,7 @@
 # Content features.
 # highlight = true            # syntax highlighting for fenced code
 # math = true                 # $...$ and $$...$$ formulas
+# mermaid = true              # ```mermaid diagrams (rendered in the browser)
 # smart_punctuation = false   # curly quotes, dashes, ellipses
 # unsafe_html = false         # keep raw HTML as-is (scripts included)
 

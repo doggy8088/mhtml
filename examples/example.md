@@ -67,6 +67,14 @@ $$
 \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
 $$
 
+## Mermaid 圖表
+
+```mermaid
+flowchart LR
+  A[Markdown] --> B{mhtml}
+  B --> C[HTML]
+```
+
 ## 其他
 
 腳註在這裡[^1]。
