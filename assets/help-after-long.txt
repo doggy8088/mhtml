@@ -71,7 +71,8 @@ CONFIG FILE
 
 SECURITY
   Raw HTML in Markdown is sanitized by default: <script>, event handlers (onerror=...),
-  javascript: links and similar are removed. --unsafe-html turns that off; use it only for
+  javascript: links and similar are removed. Inline images (data:image/... in an image src)
+  are kept; other data: URLs are removed. --unsafe-html turns that off; use it only for
   content you trust.
   Custom CSS from files is embedded as-is; values for --accent/--width/--font/--font-size must
   be plain CSS values (no braces, semicolons or angle brackets).

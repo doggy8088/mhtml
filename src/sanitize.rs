@@ -92,13 +92,39 @@ pub fn clean(html: &str) -> String {
     builder.add_tag_attributes("th", ["style"]);
     builder.add_tag_attributes("td", ["style"]);
 
+    // Inline images (`![](data:image/png;base64,...)`) need the `data:` scheme;
+    // the filter below limits it to `<img src>` with an image media type.
+    builder.add_url_schemes(["data"]);
+
     builder.attribute_filter(|element, attribute, value| match (element, attribute) {
+        ("img", "src") if is_data_url(value) => {
+            is_data_image(value).then_some(Cow::Borrowed(value))
+        }
+        (
+            _,
+            "href" | "xlink:href" | "src" | "action" | "data" | "formaction" | "ping" | "poster",
+        ) if is_data_url(value) => None,
         ("th" | "td", "style") => safe_text_align(value).map(Cow::Borrowed),
         ("input", "type") => (value == "checkbox").then_some(Cow::Borrowed(value)),
         _ => Some(Cow::Borrowed(value)),
     });
 
     builder.clean(html).to_string()
+}
+
+fn is_data_url(value: &str) -> bool {
+    value
+        .trim_start()
+        .get(..5)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("data:"))
+}
+
+/// `data:image/...` only. An `<img>` never runs scripts, SVG included.
+fn is_data_image(value: &str) -> bool {
+    value
+        .trim_start()
+        .get(..11)
+        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("data:image/"))
 }
 
 /// Only `text-align: left|center|right` may survive in a `style` attribute.
@@ -131,6 +157,23 @@ mod tests {
         );
         assert!(!out.contains("maction"), "{out}");
         assert!(!out.contains("onclick"), "{out}");
+    }
+
+    #[test]
+    fn inline_data_images_survive() {
+        let out = clean("<img src=\"data:image/jpeg;base64,/9j/4AAQ\" alt=\"shot\">");
+        assert!(
+            out.contains("src=\"data:image/jpeg;base64,/9j/4AAQ\""),
+            "{out}"
+        );
+    }
+
+    #[test]
+    fn other_data_urls_are_dropped() {
+        let out = clean(
+            "<a href=\"data:text/html,<script>alert(1)</script>\">x</a><img src=\"data:text/html,hi\">",
+        );
+        assert!(!out.contains("data:"), "{out}");
     }
 
     #[test]
