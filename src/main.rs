@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod enhance;
 mod highlight;
 mod page;
 mod preview;
@@ -50,8 +51,21 @@ fn main() -> Result<()> {
             math: settings.math,
             mermaid: settings.mermaid,
             toc_title: settings.toc_title.clone(),
+            enhance: settings.enhance && settings.default_style,
         },
     );
+    let lang = settings
+        .lang
+        .clone()
+        .or_else(|| {
+            settings
+                .enhance
+                .then(|| enhance::detect_lang(&source))
+                .flatten()
+                .map(String::from)
+        })
+        .unwrap_or_else(|| "en".into());
+    let main_class = rendered.profile.classes.join(" ");
 
     let title = cli
         .title
@@ -74,11 +88,16 @@ fn main() -> Result<()> {
 
     let html = page::Page {
         title: &title,
-        lang: &settings.lang,
+        lang: &lang,
         body: &rendered.body,
         theme: settings.theme,
         base: base.as_deref(),
         default_style: settings.default_style,
+        enhance: settings.enhance,
+        main_class: &main_class,
+        outline: rendered.outline.as_deref(),
+        interactive: rendered.profile.interactive,
+        title_banner: !rendered.has_h1 && rendered.profile.classes.contains(&"doc-prose"),
         highlight: rendered.uses_highlight,
         mermaid: rendered.uses_mermaid,
         overrides: settings.overrides,

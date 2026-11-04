@@ -16,6 +16,7 @@ EXAMPLES
     $ mhtml a.md a.html --toc --toc-title Contents      # table of contents after the first H1
     $ mhtml a.md a.html --no-highlight --no-math        # plain code blocks, leave $ alone
     $ mhtml a.md a.html --no-mermaid                     # keep Mermaid blocks as code
+    $ mhtml a.md a.html --no-enhance                    # static look: no adaptive layout/controls
     $ mhtml a.md a.html --smart-punctuation             # curly quotes, dashes, ellipses
     $ mhtml a.md a.html --unsafe-html                   # keep <script>/<iframe> (trusted input)
     $ mhtml a.md a.html --base https://example.com/docs/    # resolve relative links against a URL
@@ -37,6 +38,8 @@ STYLING HOOKS (put these in a --css file or in `custom_css`)
            --mhtml-mark --mhtml-note --mhtml-tip --mhtml-important --mhtml-warning --mhtml-caution
   Layout:  --mhtml-font --mhtml-mono --mhtml-font-size --mhtml-line-height --mhtml-max-width
            --mhtml-radius
+  Adaptive (see ADAPTIVE PRESENTATION): --mhtml-wide-width (column for wide-table documents),
+           --mhtml-surface (card/grid background), --mhtml-accent-soft (tints, current link)
   Hooks:   <html data-theme="auto|light|dark">; content lives in <main class="markdown-body">;
            the table of contents is <nav class="toc">; syntax tokens use .hl-* classes; alerts
            are blockquote.markdown-alert-note|tip|important|warning|caution.
@@ -54,6 +57,28 @@ MARKDOWN SUPPORTED
   works offline; the source stays visible when the diagram is invalid).
   Not supported: emoji shortcodes.
 
+ADAPTIVE PRESENTATION (on by default; --no-enhance or `enhance = false` turns it off)
+  mhtml reads the document's shape and adjusts the page; text, order and heading ids are kept.
+    layout    long multi-section docs get a sticky side outline on wide screens; docs with
+              wide tables get a wider column (--mhtml-wide-width); heading-less prose such as
+              transcripts gets a narrow reading column and the file name as its title.
+    lists     every item "Label: value" (or **Label**：value) -> property grid (ul.kv);
+              3-8 short flat items -> cards (ul.cards, ol.cards.steps); long numbered points
+              with bold leads -> numbered panels (ol.findings).
+    tables    wrapped in div.table-wrap with classes from their size: sortable (5+ rows,
+              click a header: ascending, descending, original; a reset button restores the
+              order and widths), filterable (12+ rows, search box), resizable (3+ columns,
+              drag or arrow keys on the header edge), long (15+ rows: scroll box with a sticky
+              header), wide/compact/prose/nowrap/stackable (long text on narrow screens becomes
+              stacked cards); status cells starting with ✅ ⚠️ ❌ ※ become badges.
+    cues      section numbers (`2.1 Title`) become badges, H2s get an emoji tile by topic
+              (h2.icon-*), `Title — subtitle` H1s split in two, reading time under the title,
+              hover-revealed copy icons on code blocks, reading progress bar, back-to-top
+              button.
+    language  without --lang/`lang`, CJK text sets <html lang> (zh-Hant, zh-Hans, ja, ko).
+  Controls come from a small embedded script added only when tables, code or an outline
+  exist; without JavaScript the page still reads correctly. Print hides all controls.
+
 CONFIG FILE
   Optional TOML file in the OS config folder; every key mirrors a flag.
   Precedence: built-in defaults < config file < command-line flags. Locations:
@@ -61,10 +86,11 @@ CONFIG FILE
     Linux    $XDG_CONFIG_HOME/mhtml/config.toml  (usually ~/.config/mhtml/config.toml)
     Windows  %APPDATA%\mhtml\config.toml
   Override the path with --config <FILE> or $MHTML_CONFIG; skip it with --no-config.
-  Keys: theme, lang, width, font_size, font, accent, default_style, css (array), custom_css,
-        toc, toc_title, highlight, math, mermaid, smart_punctuation, unsafe_html, open_browser.
+  Keys: theme, lang, width, font_size, font, accent, default_style, css (array), custom_css, toc,
+       toc_title, highlight, math, mermaid, enhance, smart_punctuation, unsafe_html, open_browser.
   On/off flags come in pairs (--toc / --no-toc, --highlight / --no-highlight, --math /
-  --no-math, --mermaid / --no-mermaid, --smart-punctuation / --no-smart-punctuation,
+  --no-math, --mermaid / --no-mermaid, --enhance / --no-enhance,
+  --smart-punctuation / --no-smart-punctuation,
   --unsafe-html / --no-unsafe-html, --default-style / --no-default-style) so a flag can
   override the config in either direction.
   Unknown keys or bad values are rejected with an error that lists the valid keys.

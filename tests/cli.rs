@@ -572,3 +572,105 @@ fn help_is_a_guide_for_agents_and_short_help_points_to_it() {
     );
     assert!(!short.contains("OUTPUT CONTRACT") && short.lines().count() < long.lines().count() / 3);
 }
+
+#[test]
+fn adaptive_presentation_is_on_by_default_and_can_be_turned_off() {
+    let dir = Scratch::new("enhance");
+    let md = dir.file(
+        "a.md",
+        "# 文件\n\n- **背景**：這份文件說明專案的需求與驗收方向\n- **日期**：今天開會確認的事項\n\n| 名稱 | 值 |\n| --- | --- |\n| Alpha | 2 |\n",
+    );
+    let run = |args: &[&str]| {
+        let res = bin()
+            .arg("--no-config")
+            .args(args)
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
+        assert!(res.status.success(), "{}", stderr(&res));
+        stdout(&res)
+    };
+
+    let html = run(&[]);
+    assert!(html.contains("<style id=\"mhtml-enhance\">"));
+    assert!(
+        html.contains("<script id=\"mhtml-enhance-js\">"),
+        "tables get controls"
+    );
+    assert!(html.contains("class=\"markdown-body is-cjk\""), "{html}");
+    assert!(
+        html.contains("lang=\"zh-Hant\""),
+        "CJK text sets the language"
+    );
+    assert!(html.contains("<ul class=\"kv\">") && html.contains("table-wrap"));
+    assert!(html.contains("<td>Alpha</td>"));
+
+    // An explicit language always wins over detection.
+    assert!(run(&["--lang", "en"]).contains("lang=\"en\""));
+
+    for args in [&["--no-enhance"][..], &["--no-default-style"][..]] {
+        let html = run(args);
+        assert!(!html.contains("mhtml-enhance"), "{args:?}");
+        assert!(!html.contains("id=\"mhtml-adaptive\""), "{args:?}");
+        assert!(
+            !html.contains("table-wrap") && !html.contains("class=\"kv\""),
+            "{args:?}"
+        );
+        assert!(html.contains("<main class=\"markdown-body\">"), "{args:?}");
+        assert!(html.contains("<td>Alpha</td>"));
+    }
+    assert!(
+        run(&["--no-enhance"]).contains("lang=\"en\""),
+        "no detection when off"
+    );
+
+    // `enhance = false` in the config, and --enhance to undo it.
+    let cfg = dir.file("c.toml", "enhance = false\n");
+    let res = bin()
+        .arg("--config")
+        .arg(&cfg)
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(!stdout(&res).contains("mhtml-enhance"));
+    let res = bin()
+        .arg("--config")
+        .arg(&cfg)
+        .arg("--enhance")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(stdout(&res).contains("mhtml-enhance"));
+}
+
+#[test]
+fn code_blocks_get_a_copy_icon_but_inline_code_does_not() {
+    let dir = Scratch::new("copy-icon");
+    let md = dir.file("a.md", "# T\n\nUse `inline` here.\n\n```sh\nls\n```\n");
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let html = stdout(&res);
+    // The script builds one copy button per code block and copies its text.
+    assert!(html.contains("code-copy"), "{html}");
+    assert!(html.contains("writeText"), "clipboard copy: {html}");
+    assert!(
+        html.contains("document.querySelectorAll('.markdown-body pre').forEach(setupCode)"),
+        "code blocks only: {html}"
+    );
+    // Hidden by default; revealed while the block is hovered or the button focused.
+    assert!(html.contains(".code-block:hover .code-copy"), "{html}");
+    assert!(html.contains("opacity: 0;"), "hidden by default: {html}");
+    // Inline code spans stay untouched.
+    assert!(html.contains("<code>inline</code>"), "{html}");
+    let res = bin()
+        .arg("--no-config")
+        .arg("--no-enhance")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(!stdout(&res).contains("code-copy"));
+}

@@ -23,6 +23,7 @@ mhtml README.md out.html --theme dark --css my.css
 - **設定檔**：把常用偏好寫在 OS 標準設定資料夾，命令列旗標可隨時覆寫。
 - **常見語法幾乎都支援**：CommonMark、GFM（表格、任務清單、刪除線、腳註、Alerts）、定義清單、front matter、程式碼語法上色、LaTeX 數學公式（MathML，離線，容許 `$ L $` 這種寬鬆寫法）、Mermaid 流程圖／時序圖等（內嵌 Ondine 渲染器，離線可用）、目錄。
 - **預設安全**：輸出會經過 sanitize，移除 `<script>`、`onerror`、`javascript:` 等（圖片的 `data:image/...` 內嵌圖會保留）；需要時可用 `--unsafe-html` 關閉。
+- **依內容結構自動調整版面**（預設開啟，`--no-enhance` 關閉）：長文件有側欄目錄、`標籤：內容` 清單變成屬性表、少量短項目變成卡片、表格可排序／篩選／拖曳欄寬／固定表頭、程式碼區塊滑過顯示複製鈕、CJK 文件自動設定 `lang` 與行距。詳見下方〈自適應呈現〉。
 - **輸出自成一體**：CSS 內嵌，沒有外部相依，可直接寄送或存檔。
 
 ## 安裝
@@ -74,11 +75,12 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 | `--width <LENGTH>` | 內容欄最大寬度，例如 `960px`、`80ch` |
 | `--font <FONT>` / `--font-size <LENGTH>` | 字型堆疊與基準字級 |
 | `--title <TEXT>` | 網頁標題（預設：front matter `title` → 第一個 H1 → 檔名） |
-| `--lang <LANG>` | `<html lang>`（預設 `en`） |
+| `--lang <LANG>` | `<html lang>`（預設：CJK 文件自動偵測為 `zh-Hant`／`zh-Hans`／`ja`／`ko`，其餘 `en`） |
 | `--toc` / `--toc-title <TEXT>` | 在內容前加入目錄與其標題 |
 | `--no-highlight` | 關閉程式碼語法上色 |
 | `--no-math` | 關閉 `$…$` / `$$…$$` 數學公式 |
 | `--no-mermaid` | 關閉 ```` ```mermaid ```` 圖表渲染，保留為程式碼區塊 |
+| `--no-enhance` | 關閉自適應呈現，回到靜態樣式 |
 | `--smart-punctuation` | 彎引號、破折號、刪節號 |
 | `--unsafe-html` | 保留 Markdown 內的原始 HTML（含 script），僅用於可信任的內容 |
 | `--base <URL>` | 相對連結／圖片的 `<base href>`（預覽模式預設為 Markdown 所在資料夾） |
@@ -117,6 +119,7 @@ toc_title = "目錄"
 highlight = true               # 程式碼語法上色
 math = true
 mermaid = true                    # 數學公式
+enhance = true                 # 自適應呈現
 smart_punctuation = false
 unsafe_html = false
 default_style = true           # false = 不使用內建樣式
@@ -160,6 +163,23 @@ h1 { letter-spacing: .02em; }
 | `--mhtml-max-width` / `--mhtml-radius` | 內容欄寬與圓角 |
 
 `<html>` 帶有 `data-theme="auto|light|dark"` 屬性，可用 `html[data-theme="dark"]` 撰寫僅在特定主題生效的規則。程式碼上色的 token 使用 `.hl-*` class，同樣可以覆寫。
+
+## 自適應呈現
+
+mhtml 會讀取文件的結構，自動決定版面與元件樣式；文字內容、順序與標題錨點都不會被更動。
+
+| 偵測到的結構 | 呈現方式 |
+| --- | --- |
+| 多章節長文件（H2+H3 ≥ 8） | 寬螢幕顯示固定側欄目錄並標示目前章節；子項目太多時自動摺疊 |
+| 含 6 欄以上的寬表格 | 內容欄放寬到 `--mhtml-wide-width`（預設 1160px） |
+| 沒有標題的長篇文字（逐字稿等） | 窄版閱讀欄、加大行距，以檔名作為頁面標題；`———— 文字 ————` 變成置中分隔標籤 |
+| 每項都是 `標籤：內容` 的清單 | 兩欄屬性表（`ul.kv`） |
+| 3–8 個短而扁平的項目 | 卡片（`ul.cards`、`ol.cards.steps`） |
+| 開頭粗體的長編號重點 | 編號面板（`ol.findings`） |
+| 表格 | 依列數／欄數／字數加上 sortable、filterable、resizable、long（固定表頭捲動框）、stackable（窄螢幕變卡片）等 class，另附「還原順序與欄寬」按鈕；`✅ ⚠️ ❌ ※` 開頭的儲存格變成徽章 |
+| 標題 | `2.1 標題` 的章節編號變徽章、H2 依主題加上 Emoji 圖示、`主標 — 副標` 拆成兩行、標題下方顯示閱讀時間 |
+
+互動功能來自一段內嵌的小型腳本，只有在頁面有表格、程式碼或側欄目錄時才會加入；程式碼區塊在滑鼠滑過時於右上角淡入複製圖示，點擊即複製程式碼內容；關掉 JavaScript 時頁面仍可正常閱讀，列印時所有控制項都會隱藏。
 
 ## 支援的 Markdown 語法
 

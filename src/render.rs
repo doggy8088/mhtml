@@ -10,6 +10,7 @@ use pulldown_cmark::{
     html,
 };
 
+use crate::enhance::{self, Profile};
 use crate::{highlight, page, sanitize};
 
 #[derive(Debug, Clone, Default)]
@@ -22,6 +23,9 @@ pub struct RenderOptions {
     pub mermaid: bool,
     /// Prepend a table of contents with this heading text.
     pub toc_title: Option<String>,
+    /// Adaptive presentation: classify lists, tables and headings, and build a
+    /// side outline for long documents.
+    pub enhance: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +40,12 @@ pub struct Rendered {
     /// True when at least one Mermaid diagram is present (so the renderer is
     /// embedded in the page).
     pub uses_mermaid: bool,
+    /// Document profile from the adaptive pass (empty when it is off).
+    pub profile: Profile,
+    /// Sticky side outline (`<nav class="toc toc-side">`) for long documents.
+    pub outline: Option<String>,
+    /// The document has its own H1 (otherwise the page may show its title).
+    pub has_h1: bool,
 }
 
 pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
@@ -81,6 +91,11 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
     } else {
         (events, false)
     };
+    let (events, profile) = if opts.enhance {
+        enhance::enhance(events)
+    } else {
+        (events, Profile::default())
+    };
 
     let mut html_out = String::with_capacity(source.len() * 2);
     html::push_html(&mut html_out, events.into_iter());
@@ -95,7 +110,14 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         // right after a leading page title (H1), otherwise at the very top.
         let at = match headings.first() {
             Some(h) if h.level == HeadingLevel::H1 => {
-                body.find("</h1>").map_or(0, |i| i + "</h1>".len() + 1)
+                let after_h1 = body.find("</h1>").map_or(0, |i| i + "</h1>".len() + 1);
+                // Keep the reading-time line under the title, above the TOC.
+                match body[after_h1.min(body.len())..].strip_prefix("<p class=\"doc-meta\">") {
+                    Some(_) => body[after_h1..]
+                        .find("</p>")
+                        .map_or(after_h1, |i| after_h1 + i + "</p>".len() + 1),
+                    None => after_h1,
+                }
             }
             _ => 0,
         };
@@ -105,13 +127,78 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         .iter()
         .find(|h| h.level == HeadingLevel::H1)
         .map(|h| h.text.clone());
+    let outline = profile.outline.then(|| {
+        let title = opts.toc_title.clone().unwrap_or_else(|| {
+            if profile.classes.contains(&"is-cjk") {
+                "目錄".into()
+            } else {
+                "Contents".into()
+            }
+        });
+        build_outline(&headings, &title)
+    });
 
     Rendered {
         body,
-        title: front_matter_title.or(heading_title),
+        title: front_matter_title.or(heading_title.clone()),
         uses_highlight,
         uses_mermaid,
+        profile,
+        outline,
+        has_h1: heading_title.is_some(),
     }
+}
+
+/// H2/H3 outline for the sticky sidebar. Like the TOC it is built from escaped
+/// text only, so it is added after sanitizing.
+fn build_outline(headings: &[Heading], title: &str) -> String {
+    let mut html = format!(
+        "<nav class=\"toc toc-side\" aria-label=\"{0}\">\n<strong>{0}</strong>\n<ul>\n",
+        page::escape(title)
+    );
+    let mut open_sub = false;
+    let mut open_item = false;
+    for h in headings.iter().filter(|h| !h.text.is_empty()) {
+        let link = format!(
+            "<a href=\"#{}\">{}</a>",
+            page::escape(&h.id),
+            page::escape(&h.text)
+        );
+        match h.level {
+            HeadingLevel::H2 => {
+                if open_sub {
+                    html.push_str("</ul>\n");
+                    open_sub = false;
+                }
+                if open_item {
+                    html.push_str("</li>\n");
+                }
+                html.push_str(&format!("<li>{link}"));
+                open_item = true;
+            }
+            HeadingLevel::H3 => {
+                if !open_sub {
+                    html.push_str(if open_item {
+                        "\n<ul>\n"
+                    } else {
+                        "<li>\n<ul>\n"
+                    });
+                    open_sub = true;
+                    open_item = true;
+                }
+                html.push_str(&format!("<li>{link}</li>\n"));
+            }
+            _ => {}
+        }
+    }
+    if open_sub {
+        html.push_str("</ul>\n");
+    }
+    if open_item {
+        html.push_str("</li>\n");
+    }
+    html.push_str("</ul>\n</nav>\n");
+    html
 }
 
 /// Removes a leading YAML front matter block from the stream and returns the
@@ -125,11 +212,7 @@ fn strip_front_matter(events: Vec<Event<'_>>) -> (Vec<Event<'_>>, Option<String>
         match event {
             Event::Start(Tag::MetadataBlock(MetadataBlockKind::YamlStyle)) => in_meta = true,
             Event::End(TagEnd::MetadataBlock(_)) => in_meta = false,
-            Event::Text(text) if in_meta => {
-                if title.is_none() {
-                    title = yaml_title(&text);
-                }
-            }
+            Event::Text(text) if in_meta && title.is_none() => title = yaml_title(&text),
             other if !in_meta => out.push(other),
             _ => {}
         }
@@ -826,6 +909,154 @@ mod tests {
             render("intro\n\n## A\n\n## B\n", &o)
                 .body
                 .starts_with("<nav class=\"toc\">")
+        );
+    }
+
+    fn enhanced(md: &str) -> Rendered {
+        render(
+            md,
+            &RenderOptions {
+                enhance: true,
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn enhance_is_off_by_default() {
+        let html = body("- **A**：1\n- **B**：2\n\n| a |\n|-|\n| 1 |\n");
+        assert!(!html.contains("class=\"kv\""), "{html}");
+        assert!(!html.contains("table-wrap"), "{html}");
+    }
+
+    #[test]
+    fn label_value_lists_become_property_grids() {
+        let html = enhanced("- **背景**：說明\n- 頻道：TaG\n").body;
+        assert!(html.contains("<ul class=\"kv\">"), "{html}");
+        assert!(
+            html.contains(
+                "<div class=\"kv-key\"><strong>背景</strong></div><div class=\"kv-val\">說明</div>"
+            ),
+            "{html}"
+        );
+        assert!(
+            html.contains("<div class=\"kv-key\">頻道</div><div class=\"kv-val\">TaG</div>"),
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn short_lists_become_cards_and_long_ones_stay() {
+        let cards = enhanced("- one\n- two\n- three\n").body;
+        assert!(cards.contains("<ul class=\"cards\">"), "{cards}");
+        let steps = enhanced("1. one\n2. two\n3. three\n").body;
+        assert!(steps.contains("<ol class=\"cards steps\">"), "{steps}");
+        let long = "x".repeat(80);
+        let plain = enhanced(&format!("- {long}\n- {long}\n- {long}\n")).body;
+        assert!(plain.contains("<ul>"), "{plain}");
+        let nested = enhanced("- a\n  - b\n- c\n- d\n").body;
+        assert!(!nested.contains("cards"), "{nested}");
+        let lead = "y".repeat(60);
+        let findings = enhanced(&format!("1. **A** {lead}\n2. **B** {lead}\n3. {lead}\n")).body;
+        assert!(findings.contains("<ol class=\"findings\">"), "{findings}");
+        let labelled = enhanced(&format!(
+            "1. **A**：{lead}\n2. **B**：{lead}\n3. **C**：{lead}\n"
+        ))
+        .body;
+        assert!(labelled.contains("<ol class=\"findings\">"), "{labelled}");
+        assert!(
+            !labelled.contains("kv-key"),
+            "numbered lists are never grids: {labelled}"
+        );
+    }
+
+    #[test]
+    fn tables_are_wrapped_and_tagged_by_shape() {
+        let mut md = String::from("| # | Name | 查證 |\n|---|---|---|\n");
+        for i in 1..=16 {
+            md.push_str(&format!("| {i} | item {i} | ✅ ok |\n"));
+        }
+        let html = enhanced(&md).body;
+        assert!(html.contains("<table>"), "table itself stays bare: {html}");
+        let wrap = html.split("<div class=\"table-wrap ").nth(1).unwrap();
+        let classes = &wrap[..wrap.find('"').unwrap()];
+        for class in [
+            "long",
+            "sortable",
+            "filterable",
+            "resizable",
+            "idx-first",
+            "nowrap",
+        ] {
+            assert!(
+                classes.split(' ').any(|c| c == class),
+                "{class} missing in {classes}"
+            );
+        }
+        assert!(
+            html.contains("<span class=\"badge ok\">✅ ok</span>"),
+            "{html}"
+        );
+        let r = enhanced("| a | b |\n|---|---|\n| 1 | 2 |\n");
+        assert!(r.body.contains("table-wrap"), "{}", r.body);
+        assert!(r.profile.interactive);
+    }
+
+    #[test]
+    fn headings_get_cues_without_changing_ids_or_title() {
+        let r = enhanced("# Notes — for the team\n\n## 0. 執行摘要\n\n### 2.1 背景\n");
+        assert_eq!(r.title.as_deref(), Some("Notes — for the team"));
+        let html = &r.body;
+        assert!(
+            html.contains("<span class=\"title-sub\">for the team</span>"),
+            "{html}"
+        );
+        assert!(html.contains("class=\"icon-summary\""), "{html}");
+        assert!(html.contains("id=\"0-執行摘要\""), "{html}");
+        assert!(
+            html.contains("<span class=\"h-num\">0</span>執行摘要"),
+            "{html}"
+        );
+        assert!(
+            html.contains("<span class=\"h-num\">2.1</span>背景"),
+            "{html}"
+        );
+        assert!(
+            html.contains("class=\"h-anchor\" href=\"#21-背景\""),
+            "{html}"
+        );
+    }
+
+    #[test]
+    fn document_profile_drives_layout() {
+        let mut md = String::from("# Guide\n\n");
+        for i in 1..=6 {
+            md.push_str(&format!(
+                "## Part {i}\n\ntext\n\n### Detail {i}\n\nmore\n\n"
+            ));
+        }
+        let r = enhanced(&md);
+        assert!(
+            r.profile.classes.contains(&"doc-reference"),
+            "{:?}",
+            r.profile
+        );
+        let outline = r.outline.expect("outline for a long document");
+        assert!(outline.contains("class=\"toc toc-side\""), "{outline}");
+        assert!(outline.contains("href=\"#detail-6\""), "{outline}");
+
+        let prose: String = (0..10)
+            .map(|i| format!("第 {i} 段，大家好，這是逐字稿。\n\n"))
+            .collect();
+        let r = enhanced(&format!("———— 會議開始 13:00 ————\n\n{prose}"));
+        assert!(r.profile.classes.contains(&"doc-prose"), "{:?}", r.profile);
+        assert!(r.profile.classes.contains(&"is-cjk"));
+        assert!(r.outline.is_none() && !r.has_h1);
+        assert!(
+            r.body
+                .contains("<p class=\"divider-label\"><span>會議開始 13:00</span></p>"),
+            "{}",
+            r.body
         );
     }
 }
