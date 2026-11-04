@@ -461,6 +461,13 @@ th[aria-sort="descending"] .th-sort::after { content: "▼"; opacity: 0.9; color
 }
 .col-resize:is(:hover, :focus-visible, .is-active)::after { opacity: 0.8; }
 .col-resize:focus-visible { outline: none; }
+
+/* 欄位順序：拖曳表頭搬移整欄 */
+.table-wrap.sortable thead th,
+.table-wrap.resizable thead th { touch-action: pan-y; }
+.table-wrap.is-reordering { cursor: grabbing; user-select: none; }
+.table-wrap th.is-dragging { opacity: .5; }
+.table-wrap th.is-drop-before { box-shadow: inset 3px 0 0 var(--mhtml-accent); }
 .table-wrap.is-resized > table { table-layout: fixed; }
 .table-wrap.is-resized :is(th, td) { overflow-wrap: anywhere; }
 tr[hidden] { display: none; }

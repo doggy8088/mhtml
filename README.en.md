@@ -19,7 +19,7 @@ mhtml README.md out.html --theme dark --css my.css
 
 - **Instant preview** — give it just an input file and it opens the rendered page in your default browser (relative images keep working).
 - **Light / dark themes** — `--theme auto|light|dark`; `auto` follows the system, no JavaScript involved.
-- **Adaptive presentation** — on by default (`--no-enhance` to turn off): sticky side outline for long documents, property grids and cards for compact lists, sortable/filterable/resizable tables with sticky headers and a reset control, hover-revealed copy icons on code blocks, and CJK-aware `<html lang>` and line spacing.
+- **Adaptive presentation** — on by default (`--no-enhance` to turn off): sticky side outline for long documents, property grids and cards for compact lists, sortable/filterable/resizable tables (sortable from 2 rows, drag a header to move its column) with sticky headers and a reset control, hover-revealed copy icons on code blocks, and CJK-aware `<html lang>` and line spacing.
 - **Easy styling** — CSS variables, shortcut flags, your own `.css` files, or a config file.
 - **Config file** — keep your preferences in the OS-standard config folder; command-line flags override it per run.
 - **Broad syntax support** — CommonMark, GFM (tables, task lists, strikethrough, footnotes, alerts), definition lists, front matter, syntax-highlighted code, LaTeX math (MathML, offline; tolerant of loose spacing such as `$ L $`), Mermaid diagrams (embedded Ondine renderer, works offline), table of contents.
@@ -28,7 +28,7 @@ mhtml README.md out.html --theme dark --css my.css
 
 ## Adaptive presentation
 
-On by default (`--no-enhance` or `enhance = false` turns it off). mhtml reads the document's shape and adjusts the page without touching the text, its order or heading ids: long multi-section documents get a sticky side outline, wide tables widen the column (`--mhtml-wide-width`), heading-less prose gets a reading column, `Label: value` lists become property grids, short lists become cards, and tables become sortable, filterable, resizable (with a reset control for order and widths), with sticky headers and stacked cards on narrow screens. Code blocks reveal a copy icon at the top-right corner while hovered. CJK documents get the right `<html lang>` and roomier line spacing when `--lang` is not given.
+On by default (`--no-enhance` or `enhance = false` turns it off). mhtml reads the document's shape and adjusts the page without touching the text, its order or heading ids: long multi-section documents get a sticky side outline, wide tables widen the column (`--mhtml-wide-width`), heading-less prose gets a reading column, `Label: value` lists become property grids, short lists become cards, and tables become sortable (2+ rows), filterable, resizable, with draggable column order (drag a header, or Alt+←/→), sticky headers and stacked cards on narrow screens. A reset control restores row order, column order and widths. Code blocks reveal a copy icon at the top-right corner while hovered. CJK documents get the right `<html lang>` and roomier line spacing when `--lang` is not given.
 
 ## Install
 

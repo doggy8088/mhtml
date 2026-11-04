@@ -961,7 +961,8 @@ fn table_classes<'a>(
     if rows >= 15 {
         classes.push("long");
     }
-    if rows >= 5 {
+    // 2 列以上的資料列即可排序（原本需 5 列，小表格看不到排序控制項）
+    if rows >= 2 {
         classes.push("sortable");
     }
     if rows >= 12 {

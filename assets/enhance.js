@@ -10,11 +10,15 @@
         scroll: '← 可左右捲動 →', sort: '排序', resize: '拖曳調整欄寬（雙擊還原）',
         reset: '還原順序與欄寬', resetDone: '已還原原始順序與欄寬', unsorted: '已還原原始順序',
         sorted: function (name, up) { return '已依 ' + name + (up ? ' 遞增' : ' 遞減') + '排序'; },
+        moveCol: '拖曳以搬移欄位（Alt+←/→）',
+        colMoved: function (name, n) { return '已將 ' + name + ' 欄移至第 ' + n + ' 欄'; },
         copy: '複製', copied: '已複製 ✓', table: '表格' }
     : { filter: 'Filter rows…', rows: function (n, t) { return n === t ? t + ' rows' : n + ' of ' + t + ' rows'; },
         scroll: '← scroll sideways →', sort: 'Sort', resize: 'Drag to resize (double-click to reset)',
         reset: 'Reset order and widths', resetDone: 'Original order and widths restored', unsorted: 'Original order restored',
         sorted: function (name, up) { return 'Sorted by ' + name + (up ? ' ascending' : ' descending'); },
+        moveCol: 'Drag to move the column (Alt+←/→)',
+        colMoved: function (name, n) { return name + ' column moved to position ' + n; },
         copy: 'Copy', copied: 'Copied ✓', table: 'Table' };
   var collator = new Intl.Collator(lang, { numeric: true, sensitivity: 'base' });
 
@@ -72,6 +76,86 @@
       update();
     }
 
+    // Column order: drag a header to move its column (a plain click still
+    // sorts); Alt/Ctrl+←/→ on the sort button moves it by keyboard.
+    var draggedCol = false;
+    rows.forEach(function (r) { r.mxCells = Array.prototype.slice.call(r.cells); });
+    function colIndexOf(th) { return Array.prototype.indexOf.call(head.cells, th); }
+    function placeColumn(th, to) {
+      var from = colIndexOf(th);
+      if (from < 0 || to < 0 || to === from || to >= head.cells.length) return;
+      [head].concat(rows).forEach(function (row) {
+        var list = Array.prototype.slice.call(row.cells);
+        var moving = list.splice(from, 1)[0];
+        list.splice(to, 0, moving);
+        list.forEach(function (c) { row.appendChild(c); });
+      });
+      var moved = headers.splice(from, 1)[0];
+      headers.splice(to, 0, moved);
+      update();
+    }
+    function dropIndex(x) {
+      for (var i = 0; i < head.cells.length; i++) {
+        var r = head.cells[i].getBoundingClientRect();
+        if (x < r.left + r.width / 2) return i;
+      }
+      return head.cells.length - 1;
+    }
+    function clearDropMarks() {
+      Array.prototype.forEach.call(head.cells, function (h) { h.classList.remove('is-drop-before'); });
+    }
+    function moveColumnBy(th, step) {
+      var from = colIndexOf(th);
+      var to = Math.min(head.cells.length - 1, Math.max(0, from + step));
+      if (to === from) return;
+      placeColumn(th, to);
+      announce(T.colMoved(headers[to], to + 1));
+    }
+    function bindColumnDrag(th) {
+      th.addEventListener('pointerdown', function (e) {
+        if (e.button !== 0 || (e.target.closest && e.target.closest('.col-resize'))) return;
+        draggedCol = false;
+        var startX = e.clientX, dragging = false, to = -1;
+        function move(ev) {
+          // A small horizontal move starts a column drag; a plain click sorts.
+          if (!dragging && Math.abs(ev.clientX - startX) <= 4) return;
+          if (!dragging) {
+            dragging = true;
+            wrap.classList.add('is-reordering');
+            th.classList.add('is-dragging');
+          }
+          var next = dropIndex(ev.clientX);
+          if (next !== to) {
+            clearDropMarks();
+            to = next;
+            head.cells[to].classList.add('is-drop-before');
+          }
+        }
+        function up() {
+          document.removeEventListener('pointermove', move);
+          document.removeEventListener('pointerup', up);
+          document.removeEventListener('pointercancel', up);
+          if (!dragging) return;
+          draggedCol = true;
+          wrap.classList.remove('is-reordering');
+          th.classList.remove('is-dragging');
+          clearDropMarks();
+          placeColumn(th, to);
+          announce(T.colMoved(headers[colIndexOf(th)], colIndexOf(th) + 1));
+        }
+        document.addEventListener('pointermove', move);
+        document.addEventListener('pointerup', up);
+        document.addEventListener('pointercancel', up);
+      });
+    }
+    function resetColumns() {
+      cells.forEach(function (th) { head.appendChild(th); });
+      rows.forEach(function (r) { r.mxCells.forEach(function (c) { r.appendChild(c); }); });
+      cells.forEach(function (th, i) { headers[i] = text(th); });
+      update();
+    }
+    if (cells.length >= 2) cells.forEach(bindColumnDrag);
+
     if (wrap.classList.contains('stackable')) {
       rows.forEach(function (r) {
         Array.prototype.forEach.call(r.cells, function (td, i) {
@@ -82,25 +166,35 @@
     }
 
     if (wrap.classList.contains('sortable')) {
-      var state = { col: -1, dir: 0 };
-      Array.prototype.forEach.call(head.cells, function (th, col) {
+      var state = { th: null, dir: 0 };
+      Array.prototype.forEach.call(head.cells, function (th) {
         if (th.querySelector('a, button, input')) return;
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'th-sort';
-        btn.title = T.sort;
+        btn.title = T.sort + ' · ' + T.moveCol;
         while (th.firstChild) btn.appendChild(th.firstChild);
         th.appendChild(btn);
         btn.addEventListener('click', function () {
-          state.dir = state.col === col ? (state.dir + 1) % 3 : 1;
-          state.col = col;
+          if (draggedCol) { draggedCol = false; return; }
+          // The column index is resolved live: dragging columns reorders cells.
+          var col = colIndexOf(th);
+          state.dir = state.th === th ? (state.dir + 1) % 3 : 1;
+          state.th = th;
           sortBy(col, state.dir);
-          Array.prototype.forEach.call(head.cells, function (h, i) {
-            if (i === col && state.dir) h.setAttribute('aria-sort', state.dir === 1 ? 'ascending' : 'descending');
+          Array.prototype.forEach.call(head.cells, function (h) {
+            if (h === th && state.dir) h.setAttribute('aria-sort', state.dir === 1 ? 'ascending' : 'descending');
             else h.removeAttribute('aria-sort');
           });
           announce(state.dir === 1 ? T.sorted(headers[col], true)
             : state.dir === 2 ? T.sorted(headers[col], false) : T.unsorted);
+        });
+        btn.addEventListener('keydown', function (e) {
+          var step = ((e.altKey || e.ctrlKey) && e.key === 'ArrowRight') ? 1
+            : ((e.altKey || e.ctrlKey) && e.key === 'ArrowLeft') ? -1 : 0;
+          if (!step) return;
+          e.preventDefault();
+          moveColumnBy(th, step);
         });
       });
 
@@ -205,8 +299,8 @@
       };
     }
 
-    // One control to bring back the original order and column widths.
-    if (wrap.classList.contains('sortable') || wrap.classList.contains('resizable')) {
+    // One control to bring back the original row order, column order and widths.
+    if (wrap.classList.contains('sortable') || wrap.classList.contains('resizable') || cells.length >= 2) {
       var reset = document.createElement('button');
       reset.type = 'button';
       reset.className = 'table-reset';
@@ -215,11 +309,12 @@
       toolbar().appendChild(reset);
       reset.addEventListener('click', function () {
         if (wrap.classList.contains('sortable')) {
-          state.col = -1;
+          state.th = null;
           state.dir = 0;
           sortBy(0, 0);
           Array.prototype.forEach.call(head.cells, function (h) { h.removeAttribute('aria-sort'); });
         }
+        if (cells.length >= 2) resetColumns();
         if (wrap.classList.contains('resizable')) resetWidths();
         announce(T.resetDone);
       });

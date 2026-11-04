@@ -674,3 +674,32 @@ fn code_blocks_get_a_copy_icon_but_inline_code_does_not() {
         .unwrap();
     assert!(!stdout(&res).contains("code-copy"));
 }
+
+#[test]
+fn tables_sort_from_two_rows_and_support_column_drag() {
+    let dir = Scratch::new("col-drag");
+    let md = dir.file(
+        "a.md",
+        "# T\n\n| a | b |\n| --- | --- |\n| 2 | x |\n| 1 | y |\n",
+    );
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let html = stdout(&res);
+    // Two body rows are sortable now (the gate used to be five).
+    assert!(html.contains("table-wrap sortable"), "{html}");
+    // Column drag: pointer move, keyboard move, and restore are all wired.
+    assert!(
+        html.contains("moveColumnBy") && html.contains("resetColumns"),
+        "{html}"
+    );
+    assert!(html.contains("is-drop-before"), "{html}");
+    // Off entirely without enhancement.
+    let res = bin()
+        .arg("--no-config")
+        .arg("--no-enhance")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(!stdout(&res).contains("is-drop-before"));
+}

@@ -65,12 +65,14 @@ ADAPTIVE PRESENTATION (on by default; --no-enhance or `enhance = false` turns it
     lists     every item "Label: value" (or **Label**：value) -> property grid (ul.kv);
               3-8 short flat items -> cards (ul.cards, ol.cards.steps); long numbered points
               with bold leads -> numbered panels (ol.findings).
-    tables    wrapped in div.table-wrap with classes from their size: sortable (5+ rows,
-              click a header: ascending, descending, original; a reset button restores the
-              order and widths), filterable (12+ rows, search box), resizable (3+ columns,
-              drag or arrow keys on the header edge), long (15+ rows: scroll box with a sticky
-              header), wide/compact/prose/nowrap/stackable (long text on narrow screens becomes
-              stacked cards); status cells starting with ✅ ⚠️ ❌ ※ become badges.
+    tables    wrapped in div.table-wrap with classes from their size: sortable (2+ rows,
+              click a header: ascending, descending, original; drag a header to move its
+              column, Alt+left/right moves it by keyboard), filterable (12+ rows, search
+              box), resizable (3+ columns, drag or arrow keys on the header edge), long
+              (15+ rows: scroll box with a sticky header), wide/compact/prose/nowrap/
+              stackable (long text on narrow screens becomes stacked cards); a reset
+              button restores the row order, column order and widths; status cells
+              starting with ✅ ⚠️ ❌ ※ become badges.
     cues      section numbers (`2.1 Title`) become badges, H2s get an emoji tile by topic
               (h2.icon-*), `Title — subtitle` H1s split in two, reading time under the title,
               hover-revealed copy icons on code blocks, reading progress bar, back-to-top
