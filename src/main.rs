@@ -54,6 +54,14 @@ fn main() -> Result<()> {
             enhance: settings.enhance && settings.default_style,
         },
     );
+    // CommonMark, and therefore GitHub, shows these asterisks literally even
+    // when the CJK-friendly rules let mhtml pair them up.
+    for warning in &rendered.warnings {
+        eprintln!(
+            "warning: line {}: unpaired `{}` emphasis marker; GitHub renders it literally",
+            warning.line, warning.marker
+        );
+    }
     let lang = settings
         .lang
         .clone()
@@ -123,6 +131,11 @@ fn main() -> Result<()> {
                 println!("{}", path.display());
             }
         }
+    }
+    if cli.check && !rendered.warnings.is_empty() {
+        // The HTML was produced as usual; only the exit code reports the lint.
+        io::stdout().flush().ok();
+        std::process::exit(1);
     }
     Ok(())
 }

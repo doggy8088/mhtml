@@ -19,6 +19,7 @@ EXAMPLES
     $ mhtml a.md a.html --no-enhance                    # static look: no adaptive layout/controls
     $ mhtml a.md a.html --smart-punctuation             # curly quotes, dashes, ellipses
     $ mhtml a.md a.html --unsafe-html                   # keep <script>/<iframe> (trusted input)
+    $ mhtml a.md a.html --check                         # exit 1 on unpaired ** / * emphasis
     $ mhtml a.md a.html --base https://example.com/docs/    # resolve relative links against a URL
   Pipelines
     $ cat a.md | mhtml - -                              # stdin -> stdout
@@ -55,6 +56,9 @@ MARKDOWN SUPPORTED
   ```math fences (rendered as MathML, so no JavaScript or fonts are needed), Mermaid:
   ```mermaid fences (rendered in the browser by an embedded Ondine renderer, so the page still
   works offline; the source stays visible when the diagram is invalid).
+  Emphasis is CJK-friendly: `**標籤：**內容` pairs up when the markers adjoin CJK or
+  fullwidth punctuation, where strict CommonMark (and GitHub) leaves the `**` literal.
+  Such unpaired markers always print "warning: line N: ..." on stderr (see --check).
   Not supported: emoji shortcodes.
 
 ADAPTIVE PRESENTATION (on by default; --no-enhance or `enhance = false` turns it off)
@@ -122,3 +126,6 @@ TROUBLESHOOTING
   Look differs from expectations   A config file is active: use --no-config to ignore it.
   "invalid value for accent"       Flag values must be plain CSS values; put complex CSS in a
                                    --css file.
+  "**" stays on the page           Its emphasis markers are unpaired (GitHub shows them
+                                   literally too). mhtml pairs them next to CJK punctuation
+                                   and warns on stderr either way; --check exits 1.

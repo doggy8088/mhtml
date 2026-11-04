@@ -1,6 +1,7 @@
 Convert Markdown to a beautiful, self-contained HTML page: one file, CSS inlined, works offline.
-Supports CommonMark + GFM (tables, task lists, footnotes, alerts), code highlighting, LaTeX math,
-Mermaid diagrams, front matter, light/dark themes and custom CSS.
+Supports CommonMark + GFM (tables, task lists, footnotes, alerts), CJK-friendly emphasis,
+code highlighting, LaTeX math, Mermaid diagrams, front matter, light/dark themes and
+custom CSS.
 
 QUICK START (for people and AI agents)
   Scriptable, non-interactive (never opens a browser) - use these in automation:
@@ -19,6 +20,8 @@ RULES OF THUMB FOR AGENTS
   3. INPUT is read, never modified. OUTPUT is overwritten without asking (its folder must exist),
      but mhtml refuses when OUTPUT is the same file as INPUT.
   4. Check the result by exit code, not by parsing stderr (see OUTPUT CONTRACT).
+  5. In CI add --check: unpaired ** / * emphasis markers (literal on GitHub) then make the
+     run exit non-zero.
 
 OUTPUT CONTRACT
   success     exit 0. With an OUTPUT file: HTML is written there, "Wrote <path>" goes to stderr
@@ -27,6 +30,9 @@ OUTPUT CONTRACT
               and "Previewing <path>" goes to stderr.
   failure     exit 1. Stderr holds "Error: <what failed>" and "Caused by:" lines; stdout is empty.
   bad usage   exit 2. Stderr holds the usage error (unknown flag, missing INPUT, conflicts).
+  warnings    unpaired `**`/`*` emphasis markers (GitHub shows them literally) always print
+              as "warning: line N: ..." on stderr; --check exits 1 when any were printed and
+              0 when clean (no "Error:" line either way).
   format      UTF-8 text starting with "<!doctype html>".
   title       --title, else front matter `title:`, else the first H1, else the file name.
   paths       relative image/link paths are kept as written and resolve next to the OUTPUT

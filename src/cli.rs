@@ -149,6 +149,11 @@ pub struct Cli {
     #[arg(long, hide = true, overrides_with = "unsafe_html")]
     pub no_unsafe_html: bool,
 
+    /// Exit 1 when unpaired `**`/`*` emphasis markers are found (they always
+    /// print as warnings on stderr; clean documents exit 0)
+    #[arg(long)]
+    pub check: bool,
+
     /// <base href> for relative links and images. In preview mode it defaults
     /// to the Markdown file's folder
     #[arg(long, value_name = "URL")]

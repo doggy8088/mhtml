@@ -703,3 +703,89 @@ fn tables_sort_from_two_rows_and_support_column_drag() {
         .unwrap();
     assert!(!stdout(&res).contains("is-drop-before"));
 }
+
+/// Four unpaired emphasis attempts (lines 4, 5, 12, 21) among clean content.
+const UNPAIRED_EMPHASIS_DOC: &str = "\
+# 狀態報告
+
+以下是本週的重點整理。
+**審查執行：**2026-11-04，全數通過
+這是**「引號」**文字，行內還有 `**code：**x` 程式碼。
+
+- **正常**：項目
+- 星號可以跳脫 \\* 與 a * b * c 數學寫法
+
+| 欄位 | 值 |
+| --- | --- |
+| **狀態：**待確認 | ok |
+| plain | ok |
+
+## 章節
+
+一般段落。
+
+> 引用沒有問題。
+
+**注意：**表格已更新
+
+結尾。
+";
+
+#[test]
+fn unpaired_emphasis_is_warned_on_stderr_with_line_numbers() {
+    let dir = Scratch::new("emph-warn");
+    let md = dir.file("a.md", UNPAIRED_EMPHASIS_DOC);
+
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let err = stderr(&res);
+    let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("warning: ")).collect();
+    assert_eq!(warnings.len(), 4, "{err}");
+    for line in [4, 5, 12, 21] {
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains(&format!("line {line}:"))),
+            "missing line {line}: {warnings:?}"
+        );
+    }
+    // The CJK-friendly fix renders the spots and never leaks its HTML comment.
+    let html = stdout(&res);
+    assert!(!html.contains("<!---->"), "{html}");
+    assert!(html.contains("<strong>審查執行：</strong>"), "{html}");
+    assert!(html.contains("<strong>「引號」</strong>"), "{html}");
+
+    let res = bin()
+        .arg("--no-config")
+        .arg("--unsafe-html")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    let html = stdout(&res);
+    assert!(!html.contains("<!---->"), "{html}");
+    assert!(html.contains("<strong>狀態：</strong>待確認"), "{html}");
+}
+
+#[test]
+fn check_flag_gates_the_exit_code_on_emphasis_warnings() {
+    let dir = Scratch::new("emph-check");
+    let md = dir.file("a.md", UNPAIRED_EMPHASIS_DOC);
+    let clean = dir.file("clean.md", "# 乾淨\n\n**正常** 與 *斜體*。\n");
+
+    let res = bin()
+        .args(["--no-config", "--check"])
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert_ne!(res.status.code(), Some(0), "{}", stderr(&res));
+
+    let res = bin()
+        .args(["--no-config", "--check"])
+        .arg(&clean)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(0), "{}", stderr(&res));
+}
