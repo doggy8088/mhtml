@@ -3,6 +3,11 @@
 use crate::cli::Theme;
 use crate::style::{self, CssSource};
 
+/// Adaptive presentation: stylesheet always, script only when something on the
+/// page uses it (tables, code blocks, the side outline).
+const ENHANCE_CSS: &str = include_str!("../assets/enhance.css");
+const ENHANCE_JS: &str = include_str!("../assets/enhance.js");
+
 /// Ondine renderer, embedded only when the document has a Mermaid diagram.
 const MERMAID_JS: &str = include_str!("../assets/ondine/ondine.js");
 const MERMAID_BOOT: &str = include_str!("../assets/mermaid.js");
@@ -29,6 +34,16 @@ pub struct Page<'a> {
     pub base: Option<&'a str>,
     /// Include the built-in theme and stylesheet.
     pub default_style: bool,
+    /// Adaptive layout, cues and table controls (needs `default_style`).
+    pub enhance: bool,
+    /// Extra classes for `<main>` from the document profile.
+    pub main_class: &'a str,
+    /// Sticky side outline for long documents.
+    pub outline: Option<&'a str>,
+    /// Embed the enhancement script (the body has tables, code or an outline).
+    pub interactive: bool,
+    /// Show the page title above a document that has no H1 of its own.
+    pub title_banner: bool,
     /// Include the syntax highlighting palette.
     pub highlight: bool,
     /// Embed the Mermaid renderer (the body contains `.mermaid-diagram` blocks).
@@ -58,6 +73,11 @@ impl Page<'_> {
                 "<style id=\"mhtml-base\">\n{}</style>\n",
                 style::BASE
             ));
+            if self.enhance {
+                head.push_str(&format!(
+                    "<style id=\"mhtml-enhance\">\n{ENHANCE_CSS}</style>\n"
+                ));
+            }
             if let Some(overrides) = &self.overrides {
                 head.push_str(&format!(
                     "<style id=\"mhtml-overrides\">\n{overrides}</style>\n"
@@ -82,7 +102,13 @@ impl Page<'_> {
             }
         }
 
+        let enhance = self.enhance && self.default_style;
         let mut scripts = String::new();
+        if enhance && (self.interactive || self.outline.is_some()) {
+            scripts.push_str("<script id=\"mhtml-enhance-js\">\n");
+            scripts.push_str(&escape_script(ENHANCE_JS));
+            scripts.push_str("</script>\n");
+        }
         if self.base.is_some() {
             scripts.push_str(ANCHOR_FIX);
         }
@@ -98,12 +124,49 @@ impl Page<'_> {
             scripts.push_str("</script>\n");
         }
 
+        let main_class = if enhance && !self.main_class.is_empty() {
+            format!("markdown-body {}", escape(self.main_class))
+        } else {
+            "markdown-body".to_string()
+        };
+        let banner = if enhance && self.title_banner {
+            format!("<h1 class=\"doc-title\">{}</h1>\n", escape(self.title))
+        } else {
+            String::new()
+        };
+        let main = format!(
+            "<main class=\"{main_class}\">\n{banner}{}</main>\n",
+            self.body
+        );
+        let long = enhance && self.main_class.split(' ').any(|c| c == "doc-long");
+        let mut page = String::new();
+        if long {
+            page.push_str("<div class=\"mhtml-progress\" aria-hidden=\"true\"></div>\n");
+        }
+        match self.outline.filter(|_| enhance) {
+            Some(outline) => {
+                let wide = if self.main_class.split(' ').any(|c| c == "doc-wide") {
+                    " is-wide"
+                } else {
+                    ""
+                };
+                page.push_str(&format!(
+                    "<div class=\"mhtml-layout{wide}\">\n<aside class=\"mhtml-aside\">\n{outline}</aside>\n{main}</div>\n"
+                ));
+            }
+            None => page.push_str(&main),
+        }
+        if long {
+            page.push_str(
+                "<a class=\"mhtml-top\" href=\"#\" title=\"Back to top\" aria-label=\"Back to top\">\u{2191}</a>\n",
+            );
+        }
+
         format!(
             "<!doctype html>\n<html lang=\"{lang}\" data-theme=\"{theme}\">\n<head>\n{head}</head>\n\
-             <body>\n<main class=\"markdown-body\">\n{body}</main>\n{scripts}</body>\n</html>\n",
+             <body>\n{page}{scripts}</body>\n</html>\n",
             lang = escape(self.lang),
             theme = self.theme.as_str(),
-            body = self.body,
         )
     }
 }
@@ -164,6 +227,11 @@ mod tests {
             theme: Theme::Auto,
             base,
             default_style: false,
+            enhance: false,
+            main_class: "",
+            outline: None,
+            interactive: false,
+            title_banner: false,
             highlight: false,
             mermaid: false,
             overrides: None,
@@ -202,6 +270,11 @@ mod tests {
             theme: Theme::Auto,
             base: None,
             default_style: false,
+            enhance: false,
+            main_class: "",
+            outline: None,
+            interactive: false,
+            title_banner: false,
             highlight: false,
             mermaid: true,
             overrides: None,

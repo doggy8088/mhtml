@@ -67,7 +67,7 @@ pub struct Cli {
     #[arg(long)]
     pub title: Option<String>,
 
-    /// Value of the <html lang> attribute [default: en]
+    /// Value of the <html lang> attribute [default: detected for CJK text, else en]
     #[arg(long, value_name = "LANG")]
     pub lang: Option<String>,
 
@@ -94,6 +94,15 @@ pub struct Cli {
     /// Do not insert a table of contents (to undo `toc = true` in the config)
     #[arg(long, hide = true, overrides_with = "toc")]
     pub no_toc: bool,
+
+    /// Turn off adaptive presentation (layout by document shape, cards, property
+    /// grids, section cues, interactive tables, side outline)
+    #[arg(long, overrides_with = "enhance")]
+    pub no_enhance: bool,
+
+    /// Turn adaptive presentation on (to undo `enhance = false` in the config)
+    #[arg(long, hide = true, overrides_with = "no_enhance")]
+    pub enhance: bool,
 
     /// Heading shown above the table of contents [default: Contents]
     #[arg(long, value_name = "TEXT")]
@@ -139,6 +148,11 @@ pub struct Cli {
     /// Sanitize raw HTML (to undo `unsafe_html = true` in the config)
     #[arg(long, hide = true, overrides_with = "unsafe_html")]
     pub no_unsafe_html: bool,
+
+    /// Exit 1 when unpaired `**`/`*` emphasis markers are found (they always
+    /// print as warnings on stderr; clean documents exit 0)
+    #[arg(long)]
+    pub check: bool,
 
     /// <base href> for relative links and images. In preview mode it defaults
     /// to the Markdown file's folder
@@ -198,7 +212,8 @@ mod help_tests {
     const STYLE_CSS: &str = concat!(
         include_str!("../assets/style.css"),
         include_str!("../assets/theme-light.css"),
-        include_str!("../assets/theme-dark.css")
+        include_str!("../assets/theme-dark.css"),
+        include_str!("../assets/enhance.css")
     );
     const CONFIG_TEMPLATE: &str = include_str!("../assets/config.toml");
 

@@ -572,3 +572,220 @@ fn help_is_a_guide_for_agents_and_short_help_points_to_it() {
     );
     assert!(!short.contains("OUTPUT CONTRACT") && short.lines().count() < long.lines().count() / 3);
 }
+
+#[test]
+fn adaptive_presentation_is_on_by_default_and_can_be_turned_off() {
+    let dir = Scratch::new("enhance");
+    let md = dir.file(
+        "a.md",
+        "# 文件\n\n- **背景**：這份文件說明專案的需求與驗收方向\n- **日期**：今天開會確認的事項\n\n| 名稱 | 值 |\n| --- | --- |\n| Alpha | 2 |\n",
+    );
+    let run = |args: &[&str]| {
+        let res = bin()
+            .arg("--no-config")
+            .args(args)
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
+        assert!(res.status.success(), "{}", stderr(&res));
+        stdout(&res)
+    };
+
+    let html = run(&[]);
+    assert!(html.contains("<style id=\"mhtml-enhance\">"));
+    assert!(
+        html.contains("<script id=\"mhtml-enhance-js\">"),
+        "tables get controls"
+    );
+    assert!(html.contains("class=\"markdown-body is-cjk\""), "{html}");
+    assert!(
+        html.contains("lang=\"zh-Hant\""),
+        "CJK text sets the language"
+    );
+    assert!(html.contains("<ul class=\"kv\">") && html.contains("table-wrap"));
+    assert!(html.contains("<td>Alpha</td>"));
+
+    // An explicit language always wins over detection.
+    assert!(run(&["--lang", "en"]).contains("lang=\"en\""));
+
+    for args in [&["--no-enhance"][..], &["--no-default-style"][..]] {
+        let html = run(args);
+        assert!(!html.contains("mhtml-enhance"), "{args:?}");
+        assert!(!html.contains("id=\"mhtml-adaptive\""), "{args:?}");
+        assert!(
+            !html.contains("table-wrap") && !html.contains("class=\"kv\""),
+            "{args:?}"
+        );
+        assert!(html.contains("<main class=\"markdown-body\">"), "{args:?}");
+        assert!(html.contains("<td>Alpha</td>"));
+    }
+    assert!(
+        run(&["--no-enhance"]).contains("lang=\"en\""),
+        "no detection when off"
+    );
+
+    // `enhance = false` in the config, and --enhance to undo it.
+    let cfg = dir.file("c.toml", "enhance = false\n");
+    let res = bin()
+        .arg("--config")
+        .arg(&cfg)
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(!stdout(&res).contains("mhtml-enhance"));
+    let res = bin()
+        .arg("--config")
+        .arg(&cfg)
+        .arg("--enhance")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(stdout(&res).contains("mhtml-enhance"));
+}
+
+#[test]
+fn code_blocks_get_a_copy_icon_but_inline_code_does_not() {
+    let dir = Scratch::new("copy-icon");
+    let md = dir.file("a.md", "# T\n\nUse `inline` here.\n\n```sh\nls\n```\n");
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let html = stdout(&res);
+    // The script builds one copy button per code block and copies its text.
+    assert!(html.contains("code-copy"), "{html}");
+    assert!(html.contains("writeText"), "clipboard copy: {html}");
+    assert!(
+        html.contains("document.querySelectorAll('.markdown-body pre').forEach(setupCode)"),
+        "code blocks only: {html}"
+    );
+    // Hidden by default; revealed while the block is hovered or the button focused.
+    assert!(html.contains(".code-block:hover .code-copy"), "{html}");
+    assert!(html.contains("opacity: 0;"), "hidden by default: {html}");
+    // Inline code spans stay untouched.
+    assert!(html.contains("<code>inline</code>"), "{html}");
+    let res = bin()
+        .arg("--no-config")
+        .arg("--no-enhance")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(!stdout(&res).contains("code-copy"));
+}
+
+#[test]
+fn tables_sort_from_two_rows_and_support_column_drag() {
+    let dir = Scratch::new("col-drag");
+    let md = dir.file(
+        "a.md",
+        "# T\n\n| a | b |\n| --- | --- |\n| 2 | x |\n| 1 | y |\n",
+    );
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let html = stdout(&res);
+    // Two body rows are sortable now (the gate used to be five).
+    assert!(html.contains("table-wrap sortable"), "{html}");
+    // Column drag: pointer move, keyboard move, and restore are all wired.
+    assert!(
+        html.contains("moveColumnBy") && html.contains("resetColumns"),
+        "{html}"
+    );
+    assert!(html.contains("is-drop-before"), "{html}");
+    // Off entirely without enhancement.
+    let res = bin()
+        .arg("--no-config")
+        .arg("--no-enhance")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert!(!stdout(&res).contains("is-drop-before"));
+}
+
+/// Four unpaired emphasis attempts (lines 4, 5, 12, 21) among clean content.
+const UNPAIRED_EMPHASIS_DOC: &str = "\
+# 狀態報告
+
+以下是本週的重點整理。
+**審查執行：**2026-11-04，全數通過
+這是**「引號」**文字，行內還有 `**code：**x` 程式碼。
+
+- **正常**：項目
+- 星號可以跳脫 \\* 與 a * b * c 數學寫法
+
+| 欄位 | 值 |
+| --- | --- |
+| **狀態：**待確認 | ok |
+| plain | ok |
+
+## 章節
+
+一般段落。
+
+> 引用沒有問題。
+
+**注意：**表格已更新
+
+結尾。
+";
+
+#[test]
+fn unpaired_emphasis_is_warned_on_stderr_with_line_numbers() {
+    let dir = Scratch::new("emph-warn");
+    let md = dir.file("a.md", UNPAIRED_EMPHASIS_DOC);
+
+    let res = bin().arg("--no-config").arg(&md).arg("-").output().unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let err = stderr(&res);
+    let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("warning: ")).collect();
+    assert_eq!(warnings.len(), 4, "{err}");
+    for line in [4, 5, 12, 21] {
+        assert!(
+            warnings
+                .iter()
+                .any(|w| w.contains(&format!("line {line}:"))),
+            "missing line {line}: {warnings:?}"
+        );
+    }
+    // The CJK-friendly fix renders the spots and never leaks its HTML comment.
+    let html = stdout(&res);
+    assert!(!html.contains("<!---->"), "{html}");
+    assert!(html.contains("<strong>審查執行：</strong>"), "{html}");
+    assert!(html.contains("<strong>「引號」</strong>"), "{html}");
+
+    let res = bin()
+        .arg("--no-config")
+        .arg("--unsafe-html")
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    let html = stdout(&res);
+    assert!(!html.contains("<!---->"), "{html}");
+    assert!(html.contains("<strong>狀態：</strong>待確認"), "{html}");
+}
+
+#[test]
+fn check_flag_gates_the_exit_code_on_emphasis_warnings() {
+    let dir = Scratch::new("emph-check");
+    let md = dir.file("a.md", UNPAIRED_EMPHASIS_DOC);
+    let clean = dir.file("clean.md", "# 乾淨\n\n**正常** 與 *斜體*。\n");
+
+    let res = bin()
+        .args(["--no-config", "--check"])
+        .arg(&md)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert_ne!(res.status.code(), Some(0), "{}", stderr(&res));
+
+    let res = bin()
+        .args(["--no-config", "--check"])
+        .arg(&clean)
+        .arg("-")
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(0), "{}", stderr(&res));
+}

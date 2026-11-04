@@ -37,6 +37,7 @@ pub struct Config {
     pub highlight: Option<bool>,
     pub math: Option<bool>,
     pub mermaid: Option<bool>,
+    pub enhance: Option<bool>,
     pub smart_punctuation: Option<bool>,
     pub unsafe_html: Option<bool>,
     pub open_browser: Option<bool>,
@@ -53,7 +54,8 @@ pub struct Loaded {
 #[derive(Debug)]
 pub struct Settings {
     pub theme: Theme,
-    pub lang: String,
+    /// `None`: not set anywhere, so the caller may detect it from the text.
+    pub lang: Option<String>,
     pub default_style: bool,
     pub overrides: Option<String>,
     pub extra_css: Vec<CssSource>,
@@ -61,6 +63,7 @@ pub struct Settings {
     pub highlight: bool,
     pub math: bool,
     pub mermaid: bool,
+    pub enhance: bool,
     pub smart_punctuation: bool,
     pub unsafe_html: bool,
     pub preview_open: bool,
@@ -172,7 +175,7 @@ pub fn resolve(cli: &Cli, loaded: Loaded) -> Result<Settings> {
 
     Ok(Settings {
         theme: cli.theme.or(cfg.theme).unwrap_or(Theme::Auto),
-        lang: pick(&cli.lang, &cfg.lang).unwrap_or_else(|| "en".into()),
+        lang: pick(&cli.lang, &cfg.lang),
         default_style: toggle(cli.default_style, cli.no_default_style)
             .or(cfg.default_style)
             .unwrap_or(true),
@@ -185,6 +188,9 @@ pub fn resolve(cli: &Cli, loaded: Loaded) -> Result<Settings> {
         math: toggle(cli.math, cli.no_math).or(cfg.math).unwrap_or(true),
         mermaid: toggle(cli.mermaid, cli.no_mermaid)
             .or(cfg.mermaid)
+            .unwrap_or(true),
+        enhance: toggle(cli.enhance, cli.no_enhance)
+            .or(cfg.enhance)
             .unwrap_or(true),
         smart_punctuation: toggle(cli.smart_punctuation, cli.no_smart_punctuation)
             .or(cfg.smart_punctuation)
@@ -256,7 +262,8 @@ mod tests {
     fn defaults_without_config_or_flags() {
         let s = resolve(&cli(&["a.md"]), Loaded::default()).unwrap();
         assert_eq!(s.theme, Theme::Auto);
-        assert_eq!(s.lang, "en");
+        assert_eq!(s.lang, None);
+        assert!(s.enhance);
         assert!(s.default_style && s.highlight && s.math && s.mermaid && s.preview_open);
         assert!(!s.smart_punctuation && !s.unsafe_html && s.toc_title.is_none());
     }
@@ -268,7 +275,7 @@ mod tests {
         );
         let s = resolve(&cli(&["a.md"]), l).unwrap();
         assert_eq!(s.theme, Theme::Dark);
-        assert_eq!(s.lang, "zh-TW");
+        assert_eq!(s.lang.as_deref(), Some("zh-TW"));
         assert_eq!(s.toc_title.as_deref(), Some("目錄"));
         assert!(!s.math && !s.mermaid && !s.preview_open);
         assert!(s.overrides.unwrap().contains("--mhtml-accent: #e11d48;"));

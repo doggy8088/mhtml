@@ -7,7 +7,7 @@
 # Color theme: "auto" (follow the system), "light" or "dark".
 # theme = "auto"
 
-# Value of <html lang="...">.
+# Value of <html lang="...">. When unset, CJK documents get zh-Hant/zh-Hans/ja/ko.
 # lang = "en"
 
 # Content column max width, any CSS length.
@@ -42,6 +42,7 @@
 # highlight = true            # syntax highlighting for fenced code
 # math = true                 # $...$ and $$...$$ formulas
 # mermaid = true              # ```mermaid diagrams (rendered in the browser)
+# enhance = true              # adaptive layout, cards, interactive tables, side outline
 # smart_punctuation = false   # curly quotes, dashes, ellipses
 # unsafe_html = false         # keep raw HTML as-is (scripts included)
 
