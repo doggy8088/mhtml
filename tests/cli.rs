@@ -290,6 +290,114 @@ fn preview_mode_writes_temp_file_with_base() {
     let _ = fs::remove_file(tmp);
 }
 
+/// Runs mhtml with `args`, feeding `input` to stdin.
+fn run_with_stdin(args: &[&str], input: &str) -> Output {
+    let mut child = bin()
+        .args(args)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(input.as_bytes())
+        .unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn piped_markdown_without_input_previews_to_a_content_named_temp_file() {
+    let version = env!("CARGO_PKG_VERSION");
+    let args = ["--no-config", "--no-open"];
+
+    // INPUT omitted: stdin is the Markdown, and `-` behaves the same.
+    let res = run_with_stdin(&args, "# Piped 你好\n\nbody\n");
+    assert!(res.status.success(), "{}", stderr(&res));
+    let path = PathBuf::from(stdout(&res).trim());
+    assert_eq!(stdout(&res).trim().lines().count(), 1);
+    let name = path.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(
+        name.starts_with(&format!("Markdown-{version}-")) && name.ends_with(".html"),
+        "{name}"
+    );
+    let html = fs::read_to_string(&path).unwrap();
+    assert!(html.contains("<title>Piped 你好</title>"), "{html}");
+
+    let with_dash = run_with_stdin(&["--no-config", "--no-open", "-"], "# Piped 你好\n\nbody\n");
+    assert_eq!(stdout(&with_dash), stdout(&res), "same content, same file");
+
+    // Other content or other flags give another file; nothing is overwritten.
+    let other = run_with_stdin(&args, "# Another\n");
+    let dark = run_with_stdin(
+        &["--no-config", "--no-open", "--theme", "dark"],
+        "# Piped 你好\n\nbody\n",
+    );
+    assert_ne!(stdout(&other), stdout(&res));
+    assert_ne!(stdout(&dark), stdout(&res));
+    for out in [&res, &other, &dark] {
+        let _ = fs::remove_file(stdout(out).trim());
+    }
+
+    // Empty stdin is a usage error, not an empty page.
+    let empty = run_with_stdin(&args, "  \n");
+    assert_eq!(empty.status.code(), Some(2));
+    assert!(empty.stdout.is_empty());
+    assert!(
+        stderr(&empty).contains("missing INPUT"),
+        "{}",
+        stderr(&empty)
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn piped_stdin_together_with_an_input_file_is_a_usage_error() {
+    let dir = Scratch::new("pipe-conflict");
+    let md = dir.file("a.md", "# File\n");
+    let md = md.to_str().unwrap();
+
+    // `cat a.md | mhtml out.html`: the pipe would be ignored, so refuse.
+    let res = run_with_stdin(&["--no-config", "--no-open", md], "# Piped\n");
+    assert_eq!(res.status.code(), Some(2), "{}", stderr(&res));
+    assert!(res.stdout.is_empty());
+    assert!(
+        stderr(&res).contains("use `-` as INPUT"),
+        "{}",
+        stderr(&res)
+    );
+
+    // Same with an OUTPUT, and the order of the flags does not matter.
+    let out = dir.path().join("o.html");
+    let res = run_with_stdin(&["--no-config", md, out.to_str().unwrap()], "# Piped\n");
+    assert_eq!(res.status.code(), Some(2));
+    assert!(!out.exists());
+
+    // `-` is the explicit way to read the pipe, and stays valid.
+    let res = run_with_stdin(&["--no-config", "-", "-"], "# Piped\n");
+    assert!(res.status.success(), "{}", stderr(&res));
+
+    // Nothing piped (null or idle stdin) is not a conflict.
+    let res = bin()
+        .args(["--no-config", md, "-"])
+        .stdin(Stdio::null())
+        .output()
+        .unwrap();
+    assert!(res.status.success(), "{}", stderr(&res));
+    let mut child = bin()
+        .args(["--no-config", md, "-"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let idle = child.stdin.take(); // open pipe, nothing written
+    let res = child.wait_with_output().unwrap();
+    drop(idle);
+    assert!(res.status.success());
+}
+
 #[test]
 fn config_file_is_applied_and_flags_override_it() {
     let dir = Scratch::new("config");
@@ -543,7 +651,8 @@ fn output_contract_in_the_help_is_true() {
         &[][..],
         &["a.md", "--open", "--no-open"][..],
     ] {
-        let res = bin().args(args).output().unwrap();
+        // A null stdin is "nothing piped", whatever the test runner provides.
+        let res = bin().args(args).stdin(Stdio::null()).output().unwrap();
         assert_eq!(res.status.code(), Some(2), "{args:?}");
         assert!(res.stdout.is_empty());
     }

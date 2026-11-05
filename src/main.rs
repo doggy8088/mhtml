@@ -9,11 +9,12 @@ mod sanitize;
 mod style;
 
 use std::fs;
-use std::io::{self, Read, Write};
+use std::io::{self, IsTerminal, Read, Write};
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
-use clap::Parser;
+use clap::error::ErrorKind;
+use clap::{CommandFactory, Parser};
 
 use crate::cli::Cli;
 
@@ -33,15 +34,39 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    // No INPUT: take the Markdown from a pipe. A terminal has nothing to read.
+    if cli.input.is_none() && io::stdin().is_terminal() {
+        missing_input();
+    }
+
+    // Both a file INPUT and piped Markdown: ambiguous, and the pipe would be
+    // silently ignored (most often a forgotten `-`, as in `cat a.md | mhtml a.html`).
+    if let Some(file) = cli.input.as_deref().filter(|i| *i != "-")
+        && preview::stdin_has_piped_data()
+    {
+        Cli::command()
+            .error(
+                ErrorKind::ArgumentConflict,
+                format!(
+                    "Markdown was piped into stdin but INPUT `{file}` was also given; \
+                     use `-` as INPUT to read stdin (`mhtml - OUTPUT`), or drop the pipe"
+                ),
+            )
+            .exit();
+    }
+
     let loaded = config::load(&cli)?;
     let settings = config::resolve(&cli, loaded)?;
-    let input = cli.input.as_deref().context("missing INPUT file")?;
+    let input = cli.input.as_deref().unwrap_or("-");
 
     if let Some(out) = cli.output.as_deref() {
         refuse_to_overwrite_input(input, out)?;
     }
 
     let source = read_input(input)?;
+    if cli.input.is_none() && source.trim().is_empty() {
+        missing_input();
+    }
     let rendered = render::render(
         &source,
         &render::RenderOptions {
@@ -138,6 +163,16 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
     Ok(())
+}
+
+/// Usage error (exit 2) for a run that has neither an INPUT nor piped Markdown.
+fn missing_input() -> ! {
+    Cli::command()
+        .error(
+            ErrorKind::MissingRequiredArgument,
+            "missing INPUT: pass a Markdown file, `-`, or pipe Markdown into mhtml",
+        )
+        .exit()
 }
 
 /// Writing the HTML over the Markdown file it was made from would destroy the

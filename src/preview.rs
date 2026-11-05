@@ -11,6 +11,11 @@ const MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Writes `html` into `<tmp>/mhtml/` and returns the file path.
 ///
+/// The name is `<stem>-<mhtml version>-<hash of the html>.html`: the same page
+/// from the same mhtml version always lands on the same file, while a new
+/// version, source, theme or flag gives a new one, so nothing is overwritten
+/// behind an open browser tab.
+///
 /// The file must outlive this process (the browser reads it later), so it is
 /// not deleted on exit; stale files from earlier runs are swept instead.
 pub fn write_temp(html: &str, stem: &str) -> Result<PathBuf> {
@@ -18,13 +23,28 @@ pub fn write_temp(html: &str, stem: &str) -> Result<PathBuf> {
     fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
     sweep(&dir);
 
-    let path = dir.join(format!(
-        "{}-{}.html",
-        sanitize_stem(stem),
-        std::process::id()
-    ));
+    let path = dir.join(temp_name(html, stem));
+    // Always (re)write, even when the file exists: that refreshes its mtime, so
+    // the sweep above never removes a page that was just requested again.
     fs::write(&path, html).with_context(|| format!("failed to write {}", path.display()))?;
     Ok(path)
+}
+
+fn temp_name(html: &str, stem: &str) -> String {
+    format!(
+        "{}-{}-{:016x}.html",
+        sanitize_stem(stem),
+        env!("CARGO_PKG_VERSION"),
+        fnv1a64(html.as_bytes())
+    )
+}
+
+/// FNV-1a, 64 bit. Not cryptographic; it only has to be stable and spread
+/// names well (`DefaultHasher` makes no promise across Rust releases).
+fn fnv1a64(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, &b| {
+        (hash ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
+    })
 }
 
 pub fn open_in_browser(path: &Path) -> Result<()> {
@@ -60,6 +80,45 @@ fn sanitize_stem(stem: &str) -> String {
         })
         .collect();
     if s.is_empty() { "preview".into() } else { s }
+}
+
+/// True when stdin is a pipe or file that already holds data, i.e. the caller
+/// piped Markdown into mhtml. A terminal, `/dev/null`, and an empty or idle
+/// pipe (common for CI and agent child processes) all count as "nothing piped".
+///
+/// Only implemented on Unix; elsewhere it reports false.
+#[cfg(unix)]
+pub fn stdin_has_piped_data() -> bool {
+    // A producer such as `cat` may start a moment after mhtml; wait briefly
+    // for its first bytes. An idle pipe costs this much once, and only when
+    // an INPUT file was also given.
+    const WAIT_MS: libc::c_int = 150;
+    let fd = 0;
+    // SAFETY: `stat` is plain old data and `fstat`/`poll` only read/write the
+    // structs we pass; fd 0 is valid to query even when closed (they just fail).
+    unsafe {
+        let mut st: libc::stat = std::mem::zeroed();
+        if libc::fstat(fd, &mut st) != 0 {
+            return false;
+        }
+        match st.st_mode & libc::S_IFMT {
+            libc::S_IFREG => st.st_size > 0,
+            libc::S_IFIFO => {
+                let mut p = libc::pollfd {
+                    fd,
+                    events: libc::POLLIN,
+                    revents: 0,
+                };
+                libc::poll(&mut p, 1, WAIT_MS) > 0 && p.revents & libc::POLLIN != 0
+            }
+            _ => false,
+        }
+    }
+}
+
+#[cfg(not(unix))]
+pub fn stdin_has_piped_data() -> bool {
+    false
 }
 
 /// `file:///…/dir/` URL for a directory, usable as `<base href>` so that
@@ -103,6 +162,19 @@ mod tests {
     fn stem_is_made_filename_safe() {
         assert_eq!(sanitize_stem("my doc/v1"), "my-doc-v1");
         assert_eq!(sanitize_stem(""), "preview");
+    }
+
+    #[test]
+    fn temp_name_is_stable_versioned_and_content_addressed() {
+        let a = temp_name("<p>a</p>", "doc");
+        assert_eq!(a, temp_name("<p>a</p>", "doc"), "same page, same name");
+        assert_ne!(a, temp_name("<p>b</p>", "doc"), "other page, other name");
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(a.starts_with(&format!("doc-{version}-")), "{a}");
+        assert!(a.ends_with(".html"), "{a}");
+        // FNV-1a 64 test vectors keep the hash stable across releases.
+        assert_eq!(fnv1a64(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(fnv1a64(b"a"), 0xaf63_dc4c_8601_ec8c);
     }
 
     #[test]
