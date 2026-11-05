@@ -35,12 +35,11 @@ impl Theme {
     long_about = include_str!("../assets/help-long-about.txt"),
     after_help = include_str!("../assets/help-after-short.txt"),
     after_long_help = include_str!("../assets/help-after-long.txt"),
-    override_usage = "mhtml [OPTIONS] <INPUT> [OUTPUT]\n       mhtml --init-config | --print-config-path",
+    override_usage = "mhtml [OPTIONS] <INPUT> [OUTPUT]\n       <markdown> | mhtml [OPTIONS]\n       mhtml --init-config | --print-config-path",
     help_template = "{name} {version}\n{usage-heading} {usage}\n\n{about-with-newline}\n{all-args}\n{after-help}"
 )]
 pub struct Cli {
-    /// Markdown file to convert ('-' reads from stdin)
-    #[arg(required_unless_present_any = ["print_config_path", "init_config"])]
+    /// Markdown file to convert ('-' reads from stdin; omit it when piping into a preview)
     pub input: Option<String>,
 
     /// HTML file to write ('-' writes to stdout). Omit to preview in a browser

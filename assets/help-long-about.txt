@@ -11,6 +11,7 @@ QUICK START (for people and AI agents)
   Interactive preview (opens the default browser - avoid in headless or automated runs):
     $ mhtml notes.md                             # temp file + browser
     $ mhtml notes.md --no-open                   # temp file only; prints its path
+    $ cat notes.md | mhtml --no-open             # piped Markdown, temp file only
 
 RULES OF THUMB FOR AGENTS
   1. Always pass an OUTPUT (or `-` for stdout), or --no-open.
@@ -20,14 +21,19 @@ RULES OF THUMB FOR AGENTS
   3. INPUT is read, never modified. OUTPUT is overwritten without asking (its folder must exist),
      but mhtml refuses when OUTPUT is the same file as INPUT.
   4. Check the result by exit code, not by parsing stderr (see OUTPUT CONTRACT).
-  5. In CI add --check: unpaired ** / * emphasis markers (literal on GitHub) then make the
+  5. Piping without INPUT (`cat a.md | mhtml`) is preview mode only; to write a file or stdout use
+     `-` as INPUT (`cat a.md | mhtml - out.html`). Bare `mhtml` waits for stdin to close.
+     Piped Markdown plus a file INPUT (`cat a.md | mhtml b.md`) is a usage error (exit 2; Unix).
+  6. In CI add --check: unpaired ** / * emphasis markers (literal on GitHub) then make the
      run exit non-zero.
 
 OUTPUT CONTRACT
   success     exit 0. With an OUTPUT file: HTML is written there, "Wrote <path>" goes to stderr
               and stdout stays empty. With OUTPUT `-`: stdout is exactly one HTML document.
   preview     with --no-open, stdout is only the temp file path; otherwise the browser opens
-              and "Previewing <path>" goes to stderr.
+              and "Previewing <path>" goes to stderr. The file is named
+              <name>-<mhtml version>-<hash of the HTML>.html (name: file stem, "Markdown" for
+              stdin): same page, same path; other content, flags or version, other path.
   failure     exit 1. Stderr holds "Error: <what failed>" and "Caused by:" lines; stdout is empty.
   bad usage   exit 2. Stderr holds the usage error (unknown flag, missing INPUT, conflicts).
   warnings    unpaired `**`/`*` emphasis markers (GitHub shows them literally) always print

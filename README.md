@@ -17,7 +17,7 @@ mhtml README.md out.html --theme dark --css my.css
 
 ## 特色
 
-- **預覽模式**：只給輸入檔，就會產生暫存 HTML 並用預設瀏覽器開啟（相對路徑的圖片仍可正常顯示）。
+- **預覽模式**：只給輸入檔，就會產生暫存 HTML 並用預設瀏覽器開啟（相對路徑的圖片仍可正常顯示）。暫存檔名為 `<名稱>-<mhtml 版本>-<內容雜湊>.html`（stdin 的名稱為 `Markdown`）：同樣的頁面得到同一個路徑，內容、選項或版本不同則是另一個檔案，不會覆蓋瀏覽器正開著的頁面。
 - **深色／淺色主題**：`--theme auto|light|dark`，`auto` 會跟隨系統設定，不需要 JavaScript。
 - **容易客製化樣式**：用 CSS 變數、快捷旗標、自訂 `.css` 檔或設定檔調整外觀。
 - **設定檔**：把常用偏好寫在 OS 標準設定資料夾，命令列旗標可隨時覆寫。
@@ -64,6 +64,7 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 | `mhtml a.md a.html` | 輸出到檔案（不開瀏覽器，加 `--open` 才會開） |
 | `mhtml - -` | 從 stdin 讀、寫到 stdout，例如 `cat a.md \| mhtml - -` |
 | `mhtml a.md --no-open` | 預覽模式但不開瀏覽器，只印出暫存檔路徑 |
+| `cat a.md \| mhtml` | 從 stdin 讀入並預覽（可省略 `-`）；要寫成檔案請用 `cat a.md \| mhtml - a.html` |
 
 ### 常用旗標
 

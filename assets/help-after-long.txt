@@ -2,7 +2,7 @@ EXAMPLES
   Basics
     $ mhtml README.md README.html                       # simplest conversion
     $ mhtml docs/guide.md dist/guide.html --title "User Guide" --lang en
-    $ mhtml README.md --no-open                         # prints /tmp/.../mhtml/README-1234.html
+    $ mhtml README.md --no-open          # prints /tmp/.../mhtml/README-<ver>-<hash>.html
     $ mhtml README.md README.html --open                # write the file, then open it
   Themes and look
     $ mhtml a.md a.html --theme light                   # light | dark | auto (default: follow OS)
@@ -23,6 +23,7 @@ EXAMPLES
     $ mhtml a.md a.html --base https://example.com/docs/    # resolve relative links against a URL
   Pipelines
     $ cat a.md | mhtml - -                              # stdin -> stdout
+    $ cat a.md | mhtml --no-open                        # stdin -> temp file, no INPUT needed
     $ git show HEAD:README.md | mhtml - out.html        # stdin -> file
   Config file
     $ mhtml --print-config-path                         # where the config file lives

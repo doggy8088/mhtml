@@ -576,6 +576,7 @@ dependencies = [
  "clap",
  "dirs",
  "latex2mathml",
+ "libc",
  "open",
  "pulldown-cmark",
  "serde",

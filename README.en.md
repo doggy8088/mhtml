@@ -60,6 +60,9 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 | `mhtml a.md a.html` | Write a file (add `--open` to also open it) |
 | `mhtml - -` | stdin → stdout, e.g. `cat a.md \| mhtml - -` |
 | `mhtml a.md --no-open` | Preview mode without opening; prints the temp file path |
+| `cat a.md \| mhtml` | Preview Markdown piped on stdin (`-` is optional); to write a file use `cat a.md \| mhtml - a.html` |
+
+Preview files are named `<name>-<mhtml version>-<content hash>.html` (name is `Markdown` for stdin): the same page always gets the same path, while other content, flags or a new version get a new file, so an open browser tab is never overwritten.
 
 Main flags: `-t/--theme`, `-c/--css <FILE|URL>` (repeatable), `--no-default-style`, `--accent`, `--width`, `--font`, `--font-size`, `--title`, `--lang`, `--toc`, `--toc-title`, `--no-highlight`, `--no-math`, `--no-mermaid`, `--smart-punctuation`, `--unsafe-html`, `--check`, `--base`, `--config`, `--no-config`, `--init-config`, `--print-config-path`. Run `mhtml --help` for details. Every on/off flag has an opposite (`--toc` / `--no-toc`) so a single run can override the config file.
 
