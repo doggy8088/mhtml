@@ -1,29 +1,8 @@
 use std::path::PathBuf;
 
-use clap::{Parser, ValueEnum};
-use serde::Deserialize;
+use clap::Parser;
 
-/// 頁面色彩主題。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Theme {
-    /// Follow the operating system / browser setting (prefers-color-scheme).
-    Auto,
-    /// Always use the light theme.
-    Light,
-    /// Always use the dark theme.
-    Dark,
-}
-
-impl Theme {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Theme::Auto => "auto",
-            Theme::Light => "light",
-            Theme::Dark => "dark",
-        }
-    }
-}
+use crate::theme::Theme;
 
 // The help texts live in assets/help-*.txt so they are easy to edit and review;
 // the tests below keep them in sync with the real flags, config keys and CSS.
@@ -66,7 +45,7 @@ pub struct Cli {
     #[arg(long)]
     pub title: Option<String>,
 
-    /// Value of the <html lang> attribute [default: detected for CJK text, else en]
+    /// Value of the html lang attribute [default: detected for CJK text, else en]
     #[arg(long, value_name = "LANG")]
     pub lang: Option<String>,
 

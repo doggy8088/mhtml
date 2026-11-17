@@ -119,6 +119,40 @@ The built-in style is driven by CSS custom properties:
 
 Available: `--mhtml-bg`, `-fg`, `-muted`, `-border`, `-accent`, `-code-bg`, `-code-fg`, `-inline-code-bg`, `-quote-border`, `-table-stripe`, `-mark`, `-note`, `-tip`, `-important`, `-warning`, `-caution`, `-font`, `-mono`, `-font-size`, `-line-height`, `-max-width`, `-radius`. `<html>` carries `data-theme="auto|light|dark"`; syntax tokens use `.hl-*` classes.
 
+## Use as a library
+
+The converter is a Rust library (`src/lib.rs`) and the command line is a thin layer on top of it, so another CLI or app can produce the same page without shelling out.
+
+```toml
+[dependencies]
+mhtml = { git = "https://github.com/doggy8088/mhtml" }
+
+# Library only: leaves out clap, toml and the browser opener.
+# mhtml = { git = "https://github.com/doggy8088/mhtml", default-features = false }
+```
+
+```rust
+use mhtml::{Options, Theme};
+
+let options = Options::default()
+    .with_title("Release notes")
+    .with_theme(Theme::Dark);
+
+let doc = mhtml::to_html("# v1.2.0\n\n- faster\n- smaller", &options)
+    .expect("the styling options are valid");
+std::fs::write("notes.html", &doc.html).expect("write");
+```
+
+`doc` carries the whole page in `html`, plus `title`, `lang`, `body` (the `<main>` content on its own), `warnings` (emphasis markers GitHub leaves literal) and `uses_highlight` / `uses_mermaid`.
+
+`Options` mirrors the flags and the config file: `title`, `lang`, `theme`, `base`, `default_style`, `enhance`, `toc` and `toc_title`, `highlight`, `math`, `mermaid`, `smart_punctuation`, `unsafe_html`, the `accent` / `width` / `font` / `font_size` shortcuts, and `extra_css` (`CssSource::Inline` or `CssSource::Link`). The fields are public, so struct-update syntax works too:
+
+```rust
+let options = mhtml::Options { unsafe_html: true, ..Default::default() };
+```
+
+Lower-level stages are public as well: `render::render` turns Markdown into a sanitized body plus the document profile, and `Page` wraps a body you built yourself. `cargo doc --no-deps --open` lists everything.
+
 ## Development
 
 ```sh

@@ -2,10 +2,10 @@
 
 use std::fs;
 
-use anyhow::{Context, Result, bail};
+use anyhow::Context;
 
-use crate::cli::Theme;
 use crate::highlight;
+use crate::theme::Theme;
 
 const LIGHT: &str = include_str!("../assets/theme-light.css");
 const DARK: &str = include_str!("../assets/theme-dark.css");
@@ -42,7 +42,7 @@ pub fn overrides_css(
     width: Option<&str>,
     font: Option<&str>,
     font_size: Option<&str>,
-) -> Result<Option<String>> {
+) -> Result<Option<String>, InvalidCssValue> {
     let mut decls = String::new();
     for (flag, var, value) in [
         ("accent", "--mhtml-accent", accent),
@@ -58,11 +58,38 @@ pub fn overrides_css(
     Ok((!decls.is_empty()).then(|| format!(":root {{\n{decls}}}\n")))
 }
 
+/// A styling shortcut whose value could escape its declaration.
+///
+/// Values are pasted into a `<style>` block, so anything that could close the
+/// declaration or the element is refused instead of being escaped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InvalidCssValue {
+    /// The option that was given, e.g. `accent`.
+    pub name: String,
+    /// The rejected value, verbatim.
+    pub value: String,
+}
+
+impl std::fmt::Display for InvalidCssValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "invalid value for {}: {:?} (expected a plain CSS value)",
+            self.name, self.value
+        )
+    }
+}
+
+impl std::error::Error for InvalidCssValue {}
+
 /// Values are pasted into a `<style>` block, so refuse anything that could
 /// close the declaration or the element.
-fn check_css_value(flag: &str, value: &str) -> Result<()> {
+fn check_css_value(name: &str, value: &str) -> Result<(), InvalidCssValue> {
     if value.trim().is_empty() || value.contains(['{', '}', ';', '<', '>']) {
-        bail!("invalid value for {flag}: {value:?} (expected a plain CSS value)");
+        return Err(InvalidCssValue {
+            name: name.to_string(),
+            value: value.to_string(),
+        });
     }
     Ok(())
 }
@@ -77,7 +104,7 @@ pub enum CssSource {
 }
 
 impl CssSource {
-    pub fn load(spec: &str) -> Result<Self> {
+    pub fn load(spec: &str) -> anyhow::Result<Self> {
         if spec.starts_with("http://") || spec.starts_with("https://") {
             return Ok(CssSource::Link(spec.to_string()));
         }

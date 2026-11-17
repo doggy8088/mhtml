@@ -1,12 +1,7 @@
-mod cli;
-mod config;
-mod enhance;
-mod highlight;
-mod page;
-mod preview;
-mod render;
-mod sanitize;
-mod style;
+//! The `mhtml` command line interface.
+//!
+//! Everything here is argument parsing and I/O; the conversion itself lives in
+//! the library (`mhtml::to_html`).
 
 use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
@@ -16,7 +11,8 @@ use anyhow::{Context, Result, bail};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
 
-use crate::cli::Cli;
+use mhtml::cli::Cli;
+use mhtml::{Options, config, preview, to_html};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -67,44 +63,6 @@ fn main() -> Result<()> {
     if cli.input.is_none() && source.trim().is_empty() {
         missing_input();
     }
-    let rendered = render::render(
-        &source,
-        &render::RenderOptions {
-            smart_punctuation: settings.smart_punctuation,
-            unsafe_html: settings.unsafe_html,
-            highlight: settings.highlight,
-            math: settings.math,
-            mermaid: settings.mermaid,
-            toc_title: settings.toc_title.clone(),
-            enhance: settings.enhance && settings.default_style,
-        },
-    );
-    // CommonMark, and therefore GitHub, shows these asterisks literally even
-    // when the CJK-friendly rules let mhtml pair them up.
-    for warning in &rendered.warnings {
-        eprintln!(
-            "warning: line {}: unpaired `{}` emphasis marker; GitHub renders it literally",
-            warning.line, warning.marker
-        );
-    }
-    let lang = settings
-        .lang
-        .clone()
-        .or_else(|| {
-            settings
-                .enhance
-                .then(|| enhance::detect_lang(&source))
-                .flatten()
-                .map(String::from)
-        })
-        .unwrap_or_else(|| "en".into());
-    let main_class = rendered.profile.classes.join(" ");
-
-    let title = cli
-        .title
-        .clone()
-        .or(rendered.title.clone())
-        .unwrap_or_else(|| default_title(input));
 
     // In preview mode the page lives in the temp folder, so point relative
     // links and images back at the Markdown file's folder.
@@ -119,36 +77,52 @@ fn main() -> Result<()> {
         Some(preview::dir_to_file_url(dir.unwrap_or(Path::new("."))))
     });
 
-    let html = page::Page {
-        title: &title,
-        lang: &lang,
-        body: &rendered.body,
-        theme: settings.theme,
-        base: base.as_deref(),
-        default_style: settings.default_style,
-        enhance: settings.enhance,
-        main_class: &main_class,
-        outline: rendered.outline.as_deref(),
-        interactive: rendered.profile.interactive,
-        title_banner: !rendered.has_h1 && rendered.profile.classes.contains(&"doc-prose"),
-        highlight: rendered.uses_highlight,
-        mermaid: rendered.uses_mermaid,
-        overrides: settings.overrides,
-        extra_css: &settings.extra_css,
+    let doc = to_html(
+        &source,
+        &Options {
+            title: cli.title.clone(),
+            // The file name is the last resort, after front matter and headings.
+            fallback_title: Some(default_title(input)),
+            lang: settings.lang.clone(),
+            theme: settings.theme,
+            base,
+            default_style: settings.default_style,
+            enhance: settings.enhance,
+            // The config file and the flags were already merged and validated.
+            css_overrides: settings.overrides,
+            extra_css: settings.extra_css,
+            toc: settings.toc_title.is_some(),
+            toc_title: settings.toc_title.clone().unwrap_or_default(),
+            highlight: settings.highlight,
+            math: settings.math,
+            mermaid: settings.mermaid,
+            smart_punctuation: settings.smart_punctuation,
+            unsafe_html: settings.unsafe_html,
+            ..Options::default()
+        },
+    )?;
+
+    // CommonMark, and therefore GitHub, shows these asterisks literally even
+    // when the CJK-friendly rules let mhtml pair them up.
+    for warning in &doc.warnings {
+        eprintln!(
+            "warning: line {}: unpaired `{}` emphasis marker; GitHub renders it literally",
+            warning.line, warning.marker
+        );
     }
-    .to_html();
 
     match cli.output.as_deref() {
-        Some(out) if out == Path::new("-") => io::stdout().write_all(html.as_bytes())?,
+        Some(out) if out == Path::new("-") => io::stdout().write_all(doc.html.as_bytes())?,
         Some(out) => {
-            fs::write(out, html).with_context(|| format!("failed to write {}", out.display()))?;
+            fs::write(out, &doc.html)
+                .with_context(|| format!("failed to write {}", out.display()))?;
             eprintln!("Wrote {}", out.display());
             if cli.open {
                 preview::open_in_browser(out)?;
             }
         }
         None => {
-            let path = preview::write_temp(&html, &default_title(input))?;
+            let path = preview::write_temp(&doc.html, &default_title(input))?;
             if settings.preview_open {
                 eprintln!("Previewing {}", path.display());
                 preview::open_in_browser(&path)?;
@@ -157,7 +131,7 @@ fn main() -> Result<()> {
             }
         }
     }
-    if cli.check && !rendered.warnings.is_empty() {
+    if cli.check && doc.has_warnings() {
         // The HTML was produced as usual; only the exit code reports the lint.
         io::stdout().flush().ok();
         std::process::exit(1);

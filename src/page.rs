@@ -1,7 +1,7 @@
 //! Wraps the rendered body into a complete HTML document.
 
-use crate::cli::Theme;
 use crate::style::{self, CssSource};
+use crate::theme::Theme;
 
 /// Adaptive presentation: stylesheet always, script only when something on the
 /// page uses it (tables, code blocks, the side outline).

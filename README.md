@@ -192,6 +192,40 @@ mhtml 會讀取文件的結構，自動決定版面與元件樣式；文字內�
 
 Markdown 允許夾帶原始 HTML。為了安全地預覽不可信的檔案，預設會以白名單 sanitize 輸出（移除 `<script>`、事件屬性、`javascript:` 連結等）。僅在內容可信時才使用 `--unsafe-html`。
 
+## 當成 Rust 函式庫使用
+
+轉換引擎本身就是一個 Rust 函式庫（`src/lib.rs`），命令列只是包在它外面的一層薄殼；你自己的 CLI 或 App 不必呼叫外部執行檔，就能產出完全相同的頁面。
+
+```toml
+[dependencies]
+mhtml = { git = "https://github.com/doggy8088/mhtml" }
+
+# 只要函式庫：連 clap、toml 與開瀏覽器用的相依套件都不裝
+# mhtml = { git = "https://github.com/doggy8088/mhtml", default-features = false }
+```
+
+```rust
+use mhtml::{Options, Theme};
+
+let options = Options::default()
+    .with_title("Release notes")
+    .with_theme(Theme::Dark);
+
+let doc = mhtml::to_html("# v1.2.0\n\n- 更快\n- 更小", &options)
+    .expect("樣式選項合法");
+std::fs::write("notes.html", &doc.html).expect("寫入失敗");
+```
+
+`doc.html` 是完整的單一檔案頁面，另外還有 `title`、`lang`、`body`（單獨的 `<main>` 內容）、`warnings`（GitHub 會留下字面的強調符號）與 `uses_highlight` / `uses_mermaid`。
+
+`Options` 對應命令列旗標與設定檔：`title`、`lang`、`theme`、`base`、`default_style`、`enhance`、`toc` 與 `toc_title`、`highlight`、`math`、`mermaid`、`smart_punctuation`、`unsafe_html`，以及 `accent` / `width` / `font` / `font_size` 捷徑與 `extra_css`（`CssSource::Inline` 或 `CssSource::Link`）。欄位都是公開的，所以也能用結構更新語法：
+
+```rust
+let options = mhtml::Options { unsafe_html: true, ..Default::default() };
+```
+
+更底層的階段同樣公開：`render::render` 把 Markdown 轉成已淨化的內容與文件特徵，`Page` 則把你自備的內容包成完整頁面。完整 API 請看 `cargo doc --no-deps --open`。
+
 ## 開發
 
 ```sh

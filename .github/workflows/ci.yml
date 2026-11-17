@@ -31,6 +31,13 @@ jobs:
         run: cargo clippy --all-targets -- -D warnings
       - name: Test
         run: cargo test --all-targets
+      - name: Library without the CLI feature
+        # Keeps the library free of clap, the config file and the browser opener.
+        run: cargo check --no-default-features
+      - name: Docs
+        run: cargo doc --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
 
   npm:
     name: npm wrapper

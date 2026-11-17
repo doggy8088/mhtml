@@ -11,21 +11,43 @@ readme = "README.md"
 keywords = ["markdown", "html", "cli", "preview"]
 categories = ["command-line-utilities", "text-processing"]
 
+[lib]
+name = "mhtml"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mhtml"
+path = "src/main.rs"
+# The command needs the CLI, the config file and the browser; the library does
+# not (build it with `default-features = false` to leave those out).
+required-features = ["cli"]
+
+[features]
+default = ["cli"]
+cli = [
+    "dep:clap",
+    "dep:dirs",
+    "dep:libc",
+    "dep:open",
+    "dep:serde",
+    "dep:toml",
+]
+
 [dependencies]
 ammonia = "4.2.3"
 anyhow = "1.0.104"
-clap = { version = "4.6.7", features = ["derive", "wrap_help"] }
-dirs = "7.0.0"
+clap = { version = "4.6.7", features = ["derive", "wrap_help"], optional = true }
+dirs = { version = "7.0.0", optional = true }
 latex2mathml = "0.2.3"
-open = "5.4.4"
+open = { version = "5.4.4", optional = true }
 pulldown-cmark = { version = "0.13.4", default-features = false, features = ["html"] }
-serde = { version = "1.0.229", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"], optional = true }
 syntect = { version = "5.3.0", default-features = false, features = ["default-fancy", "html"] }
-toml = "1.1.8"
+toml = { version = "1.1.8", optional = true }
 two-face = "0.5.2"
 
 [target.'cfg(unix)'.dependencies]
-libc = "0.2"
+libc = { version = "0.2", optional = true }
 
 [profile.release]
 opt-level = 3

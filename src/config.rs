@@ -12,8 +12,9 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use crate::cli::{Cli, Theme, toggle};
+use crate::cli::{Cli, toggle};
 use crate::style::{self, CssSource};
+use crate::theme::Theme;
 
 /// Commented-out template written by `--init-config`.
 pub const TEMPLATE: &str = include_str!("../assets/config.toml");
