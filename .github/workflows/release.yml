@@ -1,10 +1,11 @@
 name: Release
 
 # Push a tag like v0.1.0 to build binaries for every platform, attach them to a
-# GitHub Release and publish the `mhtml-cli` npm package.
+# GitHub Release, publish the `mhtml-cli` npm package and the `mhtml` crate.
 #
-# The npm step uses npm Trusted Publishing (OIDC), so no NPM_TOKEN secret is
-# needed. Provenance attestations are generated automatically.
+# Both npm and crates.io use Trusted Publishing (OIDC), so no NPM_TOKEN or
+# CARGO_REGISTRY_TOKEN secret is needed. npm provenance attestations are
+# generated automatically.
 
 on:
   push:
@@ -123,3 +124,44 @@ jobs:
           cp ../LICENSE ../README.md .
           npm test
           npm publish --access public
+
+  crates:
+    name: Publish to crates.io
+    needs: release
+    runs-on: ubuntu-latest
+    # Trusted publishing (OIDC): crates.io verifies this workflow run and hands
+    # out a token that expires after 30 minutes. The trust relationship is
+    # configured on crates.io (crate Settings → Trusted Publishing) for repo
+    # doggy8088/mhtml and workflow release.yml, with no environment.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check whether this version is already on crates.io
+        id: exists
+        run: |
+          version=$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"(.*)".*/\1/')
+          status=$(curl -s -o /dev/null -w '%{http_code}' \
+            -A 'mhtml-release-workflow (https://github.com/doggy8088/mhtml)' \
+            "https://crates.io/api/v1/crates/mhtml/$version")
+          case "$status" in
+            200)
+              echo "::notice::mhtml@$version is already on crates.io; skipping."
+              echo "published=true" >> "$GITHUB_OUTPUT" ;;
+            404)
+              echo "published=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::crates.io answered HTTP $status for mhtml@$version"
+              exit 1 ;;
+          esac
+      - uses: dtolnay/rust-toolchain@stable
+        if: steps.exists.outputs.published == 'false'
+      - uses: rust-lang/crates-io-auth-action@v1
+        if: steps.exists.outputs.published == 'false'
+        id: auth
+      - name: Publish
+        if: steps.exists.outputs.published == 'false'
+        run: cargo publish --locked
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
