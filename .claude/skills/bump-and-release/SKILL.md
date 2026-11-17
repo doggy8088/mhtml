@@ -42,9 +42,12 @@ Ask with AskUserQuestion: current → new version, the commit list, and "this pu
 ```sh
 make bump LEVEL="$LEVEL"
 make check
+cargo package --locked --allow-dirty   # builds the crate exactly as crates.io will get it
 ```
 
-Done when both pass and `git diff --stat` lists exactly Cargo.toml, Cargo.lock and npm/package.json.
+`cargo package` matters because neither `make check` nor CI builds the packaged crate, and the crates job runs only after the GitHub Release is public. A file the build reads from outside the `include` list in Cargo.toml (`src/**`, `assets/**`, LICENSE, the READMEs) breaks it there; widen `include` before tagging.
+
+Done when all three pass and `git diff --stat` lists exactly Cargo.toml, Cargo.lock and npm/package.json.
 
 ## 5. Commit and tag
 
@@ -69,13 +72,14 @@ Done when all of:
 - `npm view mhtml-cli@Y version` prints `Y` — the registry lags a minute or more behind the publish, so poll every 15 s for up to 3 min before calling it missing
 - `npm view mhtml-cli dist-tags.latest` prints `Y`
 - from a scratch directory, `npx -y mhtml-cli@Y --version` prints `mhtml Y`
-- `curl -s -A 'mhtml-release-check' https://crates.io/api/v1/crates/mhtml | jq -r .crate.max_version` prints `Y` (same lag as npm, same polling)
+- `curl -s -A 'mhtml-release-check' https://crates.io/api/v1/crates/mhtml | jq -r .crate.max_version` prints `Y` (the crates job waits for the index before it ends, so no polling is needed)
 
 Report the version, `https://github.com/doggy8088/mhtml/releases/tag/vY`, `https://www.npmjs.com/package/mhtml-cli/v/Y` and `https://crates.io/crates/mhtml/Y`.
 
 ## When something fails
 
 - **Before the GitHub Release job**: nothing is public. Flaky build → `gh run rerun <id> --failed`. Real defect → fix on `main`, then release the next patch.
-- **GitHub Release exists, npm job failed**: `vY` is on GitHub only. npm-side cause (trusted publisher missing or not matching `doggy8088/mhtml` + `release.yml`; fix with `npm trust github mhtml-cli --repo doggy8088/mhtml --file release.yml --allow-publish`) → fix, then `gh run rerun <id> --failed`. Workflow defect → fix on `main`, release the next patch.
+- **GitHub Release exists, npm job failed**: `vY` is on GitHub (and maybe crates.io) only. npm-side cause (trusted publisher missing or not matching `doggy8088/mhtml` + `release.yml`; fix with `npm trust github mhtml-cli --repo doggy8088/mhtml --file release.yml --allow-publish`) → fix, then `gh run rerun <id> --failed`. Workflow defect → fix on `main`, release the next patch.
 - **GitHub Release exists, crates job failed**: `vY` is on GitHub (and maybe npm) only. crates.io-side cause (trusted publisher missing or not matching `doggy8088/mhtml` + `release.yml` with no environment; fix it in the crate's Settings → Trusted Publishing) → fix, then `gh run rerun <id> --failed`. Workflow defect → fix on `main`, release the next patch.
 - **Manual npm publish** needs the user's 2FA, so hand them the command: `! cd npm && cp ../LICENSE ../README.md . && npm publish --access public --otp=<code>`, then `rm LICENSE README.md`.
+- **Manual crates.io publish** needs an API token, because trusted publishing only works inside the workflow. Ask the user to create one at `https://crates.io/settings/tokens/new` (scope `publish-update`, crate `mhtml`, 7 days), then run this in their own terminal rather than with `!`, so the token stays out of the transcript: `git worktree add --detach ../mhtml-vY vY && cd ../mhtml-vY && CARGO_REGISTRY_TOKEN=<token> cargo publish --locked`. Publish from the tag, never from a later HEAD. Afterwards they revoke the token and you run `git worktree remove ../mhtml-vY`.
