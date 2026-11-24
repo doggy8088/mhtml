@@ -13,6 +13,7 @@ EXAMPLES
     $ mhtml a.md a.html --css https://example.com/x.css  # URLs are linked, not inlined
     $ mhtml a.md a.html --no-default-style --css all-mine.css   # start from zero
   Content options
+    $ mhtml a.md --content-only                        # open a clean page for copying
     $ mhtml a.md a.html --toc --toc-title Contents      # table of contents after the first H1
     $ mhtml a.md a.html --no-highlight --no-math        # plain code blocks, leave $ alone
     $ mhtml a.md a.html --no-mermaid                     # keep Mermaid blocks as code
@@ -70,7 +71,9 @@ ADAPTIVE PRESENTATION (on by default; --no-enhance or `enhance = false` turns it
     lists     every item "Label: value" (or **Label**：value) -> property grid (ul.kv);
               3-8 short flat items -> cards (ul.cards, ol.cards.steps); long numbered points
               with bold leads -> numbered panels (ol.findings).
-    tables    wrapped in div.table-wrap with classes from their size: sortable (2+ rows,
+    tables    Export CSV downloads the headers and visible rows in the current row and column
+              order as UTF-8 with BOM. Formula-like fields are escaped for spreadsheets.
+              Tables are wrapped in div.table-wrap: sortable (2+ rows,
               click a header: ascending, descending, original; drag a header to move its
               column, Alt+left/right moves it by keyboard), filterable (12+ rows, search
               box), resizable (3+ columns, drag or arrow keys on the header edge), long
@@ -86,6 +89,14 @@ ADAPTIVE PRESENTATION (on by default; --no-enhance or `enhance = false` turns it
   Controls come from a small embedded script added only when tables, code or an outline
   exist; without JavaScript the page still reads correctly. Print hides all controls.
 
+CONTENT-ONLY MODE
+  With --content-only or content_only = true, the page uses browser styling and contains only
+  the document. Tables, links and images keep their HTML structure. Task markers become text,
+  formulas and Mermaid stay as source, and HTML is sanitized. The mode overrides themes,
+  CSS, the TOC, adaptive presentation, highlighting, math, Mermaid and raw HTML passthrough.
+  A relative --base resolves from the output folder, or the working folder with stdout.
+  Use --no-content-only to restore regular output for one run.
+
 CONFIG FILE
   Optional TOML file in the OS config folder; every key mirrors a flag.
   Precedence: built-in defaults < config file < command-line flags. Locations:
@@ -94,10 +105,11 @@ CONFIG FILE
     Windows  %APPDATA%\mhtml\config.toml
   Override the path with --config <FILE> or $MHTML_CONFIG; skip it with --no-config.
   Keys: theme, lang, width, font_size, font, accent, default_style, css (array), custom_css, toc,
-       toc_title, highlight, math, mermaid, enhance, smart_punctuation, unsafe_html, open_browser.
+        toc_title, highlight, math, mermaid, enhance, content_only, smart_punctuation,
+        unsafe_html, open_browser.
   On/off flags come in pairs (--toc / --no-toc, --highlight / --no-highlight, --math /
   --no-math, --mermaid / --no-mermaid, --enhance / --no-enhance,
-  --smart-punctuation / --no-smart-punctuation,
+  --content-only / --no-content-only, --smart-punctuation / --no-smart-punctuation,
   --unsafe-html / --no-unsafe-html, --default-style / --no-default-style) so a flag can
   override the config in either direction.
   Unknown keys or bad values are rejected with an error that lists the valid keys.

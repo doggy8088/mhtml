@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 
+use ammonia::Url;
 use pulldown_cmark::{
     CodeBlockKind, CowStr, Event, HeadingLevel, MetadataBlockKind, Options, Parser, Tag, TagEnd,
     html,
@@ -51,6 +52,27 @@ pub struct Rendered {
 }
 
 pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
+    render_with_mode(source, opts, false, None)
+}
+
+pub(crate) fn render_content(
+    source: &str,
+    smart_punctuation: bool,
+    base: Option<&Url>,
+) -> Rendered {
+    let opts = RenderOptions {
+        smart_punctuation,
+        ..RenderOptions::default()
+    };
+    render_with_mode(source, &opts, true, base)
+}
+
+fn render_with_mode(
+    source: &str,
+    opts: &RenderOptions,
+    content_only: bool,
+    base: Option<&Url>,
+) -> Rendered {
     let mut parser_opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
         | Options::ENABLE_STRIKETHROUGH
@@ -59,7 +81,7 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         | Options::ENABLE_YAML_STYLE_METADATA_BLOCKS
         | Options::ENABLE_DEFINITION_LIST
         | Options::ENABLE_GFM;
-    if opts.math {
+    if opts.math || content_only {
         parser_opts |= Options::ENABLE_MATH;
     }
     if opts.smart_punctuation {
@@ -107,7 +129,18 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
         drop_flank_fixes(events)
     };
 
-    let (events, front_matter_title) = strip_front_matter(events);
+    let (mut events, front_matter_title) = strip_front_matter(events);
+    if content_only {
+        for event in &mut events {
+            *event = match event {
+                Event::InlineMath(latex) => Event::Text(format!("${latex}$").into()),
+                Event::DisplayMath(latex) => Event::Text(format!("$${latex}$$").into()),
+                Event::TaskListMarker(true) => Event::Text("☑ ".into()),
+                Event::TaskListMarker(false) => Event::Text("☐ ".into()),
+                _ => continue,
+            };
+        }
+    }
     let (events, headings) = assign_heading_ids(events);
     let events = if opts.math {
         render_math(events)
@@ -133,7 +166,9 @@ pub fn render(source: &str, opts: &RenderOptions) -> Rendered {
     let mut html_out = String::with_capacity(source.len() * 2);
     html::push_html(&mut html_out, events.into_iter());
 
-    let mut body = if opts.unsafe_html {
+    let mut body = if content_only {
+        sanitize::clean_content(&html_out, base)
+    } else if opts.unsafe_html {
         html_out
     } else {
         sanitize::clean(&html_out)
@@ -791,13 +826,23 @@ fn render_math(events: Vec<Event<'_>>) -> Vec<Event<'_>> {
     use latex2mathml::{DisplayStyle, latex_to_mathml};
 
     let convert = |latex: &str, style: DisplayStyle| -> Event<'static> {
-        let html = latex_to_mathml(latex, style).unwrap_or_else(|err| {
+        let mut html = latex_to_mathml(latex, style).unwrap_or_else(|err| {
             format!(
                 "<code class=\"math-error\" title=\"{}\">{}</code>",
                 page::escape(&err.to_string()),
                 page::escape(latex)
             )
         });
+        // CSV needs the source because concatenating MathML text loses
+        // operators carried by structure, such as fractions and superscripts.
+        if html.starts_with("<math ")
+            && let Some(end) = html.find('>')
+        {
+            html.insert_str(
+                end,
+                &format!(" data-mhtml-latex=\"{}\"", page::escape(latex)),
+            );
+        }
         Event::Html(CowStr::from(html))
     };
 

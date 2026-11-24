@@ -92,6 +92,85 @@ fn reads_stdin_and_writes_stdout() {
 }
 
 #[test]
+fn content_only_overrides_presentation_and_can_be_disabled() {
+    let dir = Scratch::new("content-only");
+    let md = dir.file(
+        "a.md",
+        "# 標題\n\n## Section\n\n[Section](#section) and ![Photo](photo.png)\n\n\
+         - [x] Done\n- [ ] Pending\n\n| Name | Amount |\n| --- | --- |\n| ABC | 5 |\n\n\
+         $a\\_b + \\{x\\}$\n\n\"Quotes\"\n\n```mermaid\ngraph TD; A-->B\n```\n\n\
+         <details><summary id=\"summary\">Summary</summary>Expanded text</details>\n\n\
+         <script>alert(1)</script>\n",
+    );
+    let cfg = dir.file(
+        "config.toml",
+        "content_only = true\ntheme = \"dark\"\ntoc = true\nunsafe_html = true\n",
+    );
+    let run = |flags: &[&str]| {
+        let out = bin()
+            .arg("--config")
+            .arg(&cfg)
+            .args(["--base", "https://example.test/docs/"])
+            .args(flags)
+            .arg(&md)
+            .arg("-")
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        stdout(&out)
+    };
+
+    let html = run(&["--css", "unused-nonexistent.css", "--smart-punctuation"]);
+    for text in [
+        "<h2 id=\"section\">Section</h2>",
+        "href=\"#section\"",
+        "src=\"https://example.test/docs/photo.png\"",
+        "☑ Done",
+        "☐ Pending",
+        "<table>",
+        "$a\\_b + \\{x\\}$",
+        "“Quotes”",
+        "<pre><code class=\"language-mermaid\">",
+        "<div><div id=\"summary\">Summary</div>Expanded text</div>",
+    ] {
+        assert!(html.contains(text), "missing {text}: {html}");
+    }
+    for text in ["<script", "<style", "<nav", "<details", "<input", "<math"] {
+        assert!(!html.contains(text), "found {text}: {html}");
+    }
+
+    let regular = run(&["--no-content-only"]);
+    assert!(regular.contains("data-theme=\"dark\""));
+    assert!(regular.contains("table-export"));
+    assert!(regular.contains("mhtml-mermaid-runtime"));
+    assert!(regular.contains("<script>alert(1)</script>"));
+    assert!(!run(&["--no-content-only", "--content-only"]).contains("<script"));
+}
+
+#[test]
+fn content_only_resolves_a_relative_base_without_redirecting_anchors() {
+    let dir = Scratch::new("content-only-relative-base");
+    let md = dir.file(
+        "a.md",
+        "# Section\n\n[Jump](#section) ![Photo](photo.png)\n",
+    );
+    let out = dir.path().join("a.html");
+    let result = bin()
+        .args(["--no-config", "--content-only", "--base", "images/"])
+        .arg(&md)
+        .arg(&out)
+        .output()
+        .unwrap();
+
+    assert!(result.status.success(), "{}", stderr(&result));
+    let html = fs::read_to_string(out).unwrap();
+    assert!(html.contains("href=\"#section\""), "{html}");
+    assert!(html.contains("src=\"file://"), "{html}");
+    assert!(html.contains("/images/photo.png\""), "{html}");
+    assert!(!html.contains("<base "), "{html}");
+}
+
+#[test]
 fn themes_switch_palettes() {
     let dir = Scratch::new("theme");
     let md = dir.file("a.md", "x\n");

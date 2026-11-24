@@ -10,6 +10,7 @@ use crate::page::Page;
 use crate::render::{self, RenderOptions, Warning};
 use crate::style::{self, CssSource, InvalidCssValue};
 use crate::theme::Theme;
+use ammonia::Url;
 
 /// Everything [`to_html`] needs.
 ///
@@ -33,8 +34,9 @@ pub struct Options {
     /// Color theme. Defaults to [`Theme::Auto`].
     pub theme: Theme,
 
-    /// `<base href>` for relative links and images. Leave `None` when the page
-    /// is written next to the Markdown it came from.
+    /// Base for relative links and images. In content-only mode supply an
+    /// absolute URL to resolve these references without a `<base>` element.
+    /// Leave `None` when the page is written next to the Markdown it came from.
     pub base: Option<String>,
 
     /// Include the built-in stylesheets. Turn it off to bring your own CSS.
@@ -43,6 +45,10 @@ pub struct Options {
     /// Adaptive presentation: layout by document shape, cards, property grids,
     /// interactive tables, side outline. Needs `default_style`.
     pub enhance: bool,
+
+    /// Static content for copying into other apps. Uses browser styling and
+    /// overrides presentation, optional rendering features and raw HTML passthrough.
+    pub content_only: bool,
 
     /// Accent color shortcut for links and highlights (any CSS color).
     pub accent: Option<String>,
@@ -87,6 +93,7 @@ impl Default for Options {
             base: None,
             default_style: true,
             enhance: true,
+            content_only: false,
             accent: None,
             width: None,
             font: None,
@@ -200,9 +207,10 @@ impl std::fmt::Display for Document {
 pub fn to_html(markdown: &str, options: &Options) -> Result<Document, InvalidCssValue> {
     // Built here rather than taken from the caller so that the shortcuts are
     // validated and escaped in one place.
-    let overrides = match &options.css_overrides {
-        Some(css) => Some(css.clone()),
-        None => style::overrides_css(
+    let overrides = match (options.content_only, &options.css_overrides) {
+        (true, _) => None,
+        (false, Some(css)) => Some(css.clone()),
+        (false, None) => style::overrides_css(
             options.accent.as_deref(),
             options.width.as_deref(),
             options.font.as_deref(),
@@ -210,27 +218,34 @@ pub fn to_html(markdown: &str, options: &Options) -> Result<Document, InvalidCss
         )?,
     };
 
-    let rendered = render::render(
-        markdown,
-        &RenderOptions {
-            smart_punctuation: options.smart_punctuation,
-            unsafe_html: options.unsafe_html,
-            highlight: options.highlight,
-            math: options.math,
-            mermaid: options.mermaid,
-            toc_title: options.toc.then(|| options.toc_title.clone()),
-            // Adaptive presentation is CSS and a script, so it needs the
-            // built-in stylesheet to describe.
-            enhance: options.enhance && options.default_style,
-        },
-    );
+    let base = options.base.as_deref();
+    let content_base = base
+        .filter(|_| options.content_only)
+        .and_then(|base| Url::parse(base).ok())
+        .filter(|base| matches!(base.scheme(), "file" | "http" | "https" | "ftp" | "ftps"));
+    let enhance = options.enhance && options.default_style && !options.content_only;
+    let rendered = if options.content_only {
+        render::render_content(markdown, options.smart_punctuation, content_base.as_ref())
+    } else {
+        render::render(
+            markdown,
+            &RenderOptions {
+                smart_punctuation: options.smart_punctuation,
+                unsafe_html: options.unsafe_html,
+                highlight: options.highlight,
+                math: options.math,
+                mermaid: options.mermaid,
+                toc_title: options.toc.then(|| options.toc_title.clone()),
+                enhance,
+            },
+        )
+    };
 
     let lang = options
         .lang
         .clone()
         .or_else(|| {
-            options
-                .enhance
+            (options.enhance || options.content_only)
                 .then(|| enhance::detect_lang(markdown))
                 .flatten()
                 .map(String::from)
@@ -248,10 +263,14 @@ pub fn to_html(markdown: &str, options: &Options) -> Result<Document, InvalidCss
         title: &title,
         lang: &lang,
         body: &rendered.body,
-        theme: options.theme,
-        base: options.base.as_deref(),
-        default_style: options.default_style,
-        enhance: options.enhance,
+        theme: if options.content_only {
+            Theme::Light
+        } else {
+            options.theme
+        },
+        base: base.filter(|_| !options.content_only),
+        default_style: options.default_style && !options.content_only,
+        enhance,
         main_class: &main_class,
         outline: rendered.outline.as_deref(),
         interactive: rendered.profile.interactive,
@@ -259,7 +278,11 @@ pub fn to_html(markdown: &str, options: &Options) -> Result<Document, InvalidCss
         highlight: rendered.uses_highlight,
         mermaid: rendered.uses_mermaid,
         overrides,
-        extra_css: &options.extra_css,
+        extra_css: if options.content_only {
+            &[]
+        } else {
+            &options.extra_css
+        },
     }
     .to_html();
 

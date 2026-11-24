@@ -9,6 +9,11 @@ use anyhow::{Context, Result};
 /// Temp files older than this are removed on the next preview.
 const MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// Folder where preview HTML files are written.
+pub fn directory() -> PathBuf {
+    std::env::temp_dir().join("mhtml")
+}
+
 /// Writes `html` into `<tmp>/mhtml/` and returns the file path.
 ///
 /// The name is `<stem>-<mhtml version>-<hash of the html>.html`: the same page
@@ -19,7 +24,7 @@ const MAX_AGE: Duration = Duration::from_secs(24 * 60 * 60);
 /// The file must outlive this process (the browser reads it later), so it is
 /// not deleted on exit; stale files from earlier runs are swept instead.
 pub fn write_temp(html: &str, stem: &str) -> Result<PathBuf> {
-    let dir = std::env::temp_dir().join("mhtml");
+    let dir = directory();
     fs::create_dir_all(&dir).with_context(|| format!("failed to create {}", dir.display()))?;
     sweep(&dir);
 

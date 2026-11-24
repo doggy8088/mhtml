@@ -39,6 +39,7 @@
 # toc_title = "Contents"
 
 # Content features.
+# content_only = false        # static document for copying into other apps
 # highlight = true            # syntax highlighting for fenced code
 # math = true                 # $...$ and $$...$$ formulas
 # mermaid = true              # ```mermaid diagrams (rendered in the browser)

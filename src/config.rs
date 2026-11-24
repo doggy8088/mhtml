@@ -39,6 +39,7 @@ pub struct Config {
     pub math: Option<bool>,
     pub mermaid: Option<bool>,
     pub enhance: Option<bool>,
+    pub content_only: Option<bool>,
     pub smart_punctuation: Option<bool>,
     pub unsafe_html: Option<bool>,
     pub open_browser: Option<bool>,
@@ -65,6 +66,7 @@ pub struct Settings {
     pub math: bool,
     pub mermaid: bool,
     pub enhance: bool,
+    pub content_only: bool,
     pub smart_punctuation: bool,
     pub unsafe_html: bool,
     pub preview_open: bool,
@@ -137,31 +139,40 @@ pub fn init(cli: &Cli) -> Result<PathBuf> {
 /// Merges config file and command-line flags (flags win).
 pub fn resolve(cli: &Cli, loaded: Loaded) -> Result<Settings> {
     let Loaded { config: cfg, path } = loaded;
+    let content_only = toggle(cli.content_only, cli.no_content_only)
+        .or(cfg.content_only)
+        .unwrap_or(false);
     let config_dir = path.as_deref().and_then(Path::parent);
 
     // Stylesheets: config files, config inline CSS, then --css, so that the most
     // specific source is last and therefore wins in the cascade.
     let mut extra_css = Vec::new();
-    for spec in &cfg.css {
-        extra_css.push(CssSource::load(&resolve_css_spec(spec, config_dir))?);
-    }
-    if let Some(css) = &cfg.custom_css {
-        extra_css.push(CssSource::Inline {
-            name: "config: custom_css".into(),
-            css: css.clone(),
-        });
-    }
-    for spec in &cli.css {
-        extra_css.push(CssSource::load(spec)?);
+    if !content_only {
+        for spec in &cfg.css {
+            extra_css.push(CssSource::load(&resolve_css_spec(spec, config_dir))?);
+        }
+        if let Some(css) = cfg.custom_css {
+            extra_css.push(CssSource::Inline {
+                name: "config: custom_css".into(),
+                css,
+            });
+        }
+        for spec in &cli.css {
+            extra_css.push(CssSource::load(spec)?);
+        }
     }
 
     let pick = |flag: &Option<String>, conf: &Option<String>| flag.clone().or_else(|| conf.clone());
-    let overrides = style::overrides_css(
-        pick(&cli.accent, &cfg.accent).as_deref(),
-        pick(&cli.width, &cfg.width).as_deref(),
-        pick(&cli.font, &cfg.font).as_deref(),
-        pick(&cli.font_size, &cfg.font_size).as_deref(),
-    )?;
+    let overrides = if content_only {
+        None
+    } else {
+        style::overrides_css(
+            pick(&cli.accent, &cfg.accent).as_deref(),
+            pick(&cli.width, &cfg.width).as_deref(),
+            pick(&cli.font, &cfg.font).as_deref(),
+            pick(&cli.font_size, &cfg.font_size).as_deref(),
+        )?
+    };
 
     let toc = toggle(cli.toc, cli.no_toc).or(cfg.toc).unwrap_or(false);
     let toc_title = pick(&cli.toc_title, &cfg.toc_title).unwrap_or_else(|| "Contents".into());
@@ -175,6 +186,7 @@ pub fn resolve(cli: &Cli, loaded: Loaded) -> Result<Settings> {
     };
 
     Ok(Settings {
+        content_only,
         theme: cli.theme.or(cfg.theme).unwrap_or(Theme::Auto),
         lang: pick(&cli.lang, &cfg.lang),
         default_style: toggle(cli.default_style, cli.no_default_style)

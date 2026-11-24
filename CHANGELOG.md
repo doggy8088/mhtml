@@ -4,6 +4,13 @@
 
 每個版本都會同時發布到 [GitHub Releases](https://github.com/doggy8088/mhtml/releases)、npm 的 [`mhtml-cli`](https://www.npmjs.com/package/mhtml-cli)，以及從 0.4.0 起的 crates.io [`mhtml`](https://crates.io/crates/mhtml)。
 
+## [0.6.0] - 2026-11-24
+
+### 新增
+
+- `--content-only` 以靜態 HTML 呈現文件，方便在瀏覽器全選後貼到 Outlook 等應用程式。也可在設定檔或 Rust `Options` 設定 `content_only`。
+- 自適應表格加入「匯出 CSV」。下載包含表頭與篩選後可見的列，依照目前的排序和欄位順序輸出為 UTF-8（含 BOM）。
+
 ## [0.5.0] - 2026-11-18
 
 ### 新增
@@ -112,6 +119,7 @@
 - npm 包裝層 `mhtml-cli`：安裝時下載對應平台的預先編譯執行檔並以 SHA-256 驗證。
 - 提供 macOS、Linux、Windows 的 x64 與 arm64 預先編譯執行檔。
 
+[0.6.0]: https://github.com/doggy8088/mhtml/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/doggy8088/mhtml/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/doggy8088/mhtml/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/doggy8088/mhtml/compare/v0.2.2...v0.3.0

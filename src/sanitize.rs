@@ -5,7 +5,7 @@
 
 use std::borrow::Cow;
 
-use ammonia::Builder;
+use ammonia::{Builder, Url, UrlRelative, UrlRelativeEvaluate};
 
 /// Presentation MathML elements produced by the math renderer. Elements that
 /// can script or embed foreign content (`maction`, `mglyph`, `annotation-xml`,
@@ -78,16 +78,33 @@ const MATHML_ATTRS: &[&str] = &[
 ];
 
 pub fn clean(html: &str) -> String {
+    clean_with_mode(html, false, None)
+}
+
+pub(crate) fn clean_content(html: &str, base: Option<&Url>) -> String {
+    clean_with_mode(html, true, base)
+}
+
+fn clean_with_mode(html: &str, content_only: bool, base: Option<&Url>) -> String {
     let mut builder = Builder::default();
 
     // Task list checkboxes and a few structural tags the defaults leave out.
-    builder.add_tags(["input", "section"]);
+    builder.add_tags(["section"]);
+    if content_only {
+        if let Some(base) = base {
+            // A document-wide <base> would also redirect heading and footnote links.
+            builder.url_relative(UrlRelative::Custom(Box::new(ContentBase(base))));
+        }
+    } else {
+        builder.add_tags(["input"]);
+        builder.add_tag_attributes("input", ["type", "checked", "disabled"]);
+    }
     builder.add_tags(MATHML_TAGS.iter().copied());
     for tag in MATHML_TAGS {
         builder.add_tag_attributes(tag, MATHML_ATTRS.iter().copied());
     }
+    builder.add_tag_attributes("math", ["data-mhtml-latex"]);
     builder.add_generic_attributes(["id", "class", "align"]);
-    builder.add_tag_attributes("input", ["type", "checked", "disabled"]);
     // Table column alignment is emitted as an inline style; see the filter.
     builder.add_tag_attributes("th", ["style"]);
     builder.add_tag_attributes("td", ["style"]);
@@ -109,7 +126,31 @@ pub fn clean(html: &str) -> String {
         _ => Some(Cow::Borrowed(value)),
     });
 
-    builder.clean(html).to_string()
+    let html = builder.clean(html).to_string();
+    if content_only {
+        // The sanitized serialization escapes angle brackets in text and attributes.
+        // Keep block boundaries while turning collapsible markup into visible content.
+        html.replace("<details>", "<div>")
+            .replace("<details ", "<div ")
+            .replace("</details>", "</div>")
+            .replace("<summary>", "<div>")
+            .replace("<summary ", "<div ")
+            .replace("</summary>", "</div>")
+    } else {
+        html
+    }
+}
+
+struct ContentBase<'a>(&'a Url);
+
+impl<'a> UrlRelativeEvaluate<'a> for ContentBase<'a> {
+    fn evaluate<'url>(&self, url: &'url str) -> Option<Cow<'url, str>> {
+        if url.trim_start().starts_with('#') {
+            Some(Cow::Borrowed(url))
+        } else {
+            self.0.join(url).ok().map(|url| Cow::Owned(url.into()))
+        }
+    }
 }
 
 fn is_data_url(value: &str) -> bool {

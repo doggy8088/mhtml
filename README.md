@@ -83,6 +83,7 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 | `--no-math` | 關閉 `$…$` / `$$…$$` 數學公式 |
 | `--no-mermaid` | 關閉 ```` ```mermaid ```` 圖表渲染，保留為程式碼區塊 |
 | `--no-enhance` | 關閉自適應呈現，回到靜態樣式 |
+| `--content-only` | 只呈現文件內容，方便複製到 Outlook 等應用程式 |
 | `--smart-punctuation` | 彎引號、破折號、刪節號 |
 | `--unsafe-html` | 保留 Markdown 內的原始 HTML（含 script），僅用於可信任的內容 |
 | `--check` | 有未配對的粗體／斜體記號時回傳非 0 結束碼（警告不論有無此旗標都會印在 stderr） |
@@ -91,6 +92,12 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 | `--init-config` / `--print-config-path` | 建立範本設定檔／印出設定檔位置 |
 
 開關類旗標都有成對的反向版本（例如 `--toc` / `--no-toc`），用來在單次執行時覆蓋設定檔。
+
+### 複製到 Outlook
+
+執行 `mhtml a.md --content-only` 開啟預覽，接著在瀏覽器全選、複製並貼到 Outlook。頁面保留標題、清單、連結、圖片和表格等 HTML 結構，使用瀏覽器的基本樣式。任務狀態以文字呈現，公式和 Mermaid 保留原文。此模式會略過主題、自訂 CSS、目錄及互動功能，並淨化原始 HTML。
+
+也可以在設定檔設為 `content_only = true`，需要一般輸出時再加 `--no-content-only`。
 
 ## 設定檔
 
@@ -184,6 +191,8 @@ mhtml 會讀取文件的結構，自動決定版面與元件樣式；文字內�
 
 互動功能來自一段內嵌的小型腳本，只有在頁面有表格、程式碼或側欄目錄時才會加入；程式碼區塊在滑鼠滑過時於右上角淡入複製圖示，點擊即複製程式碼內容；關掉 JavaScript 時頁面仍可正常閱讀，列印時所有控制項都會隱藏。
 
+表格的「匯出 CSV」會下載目前的表頭與篩選後可見的列，沿用當下的列順序和欄位順序。檔案使用 UTF-8（含 BOM），方便用 Excel 開啟。看起來像試算表公式的欄位會加上轉義字元。
+
 ## 支援的 Markdown 語法
 
 標題（含 `{#自訂-id}` 與自動錨點）、段落、粗體／斜體／刪除線（CJK 友好強調：`**標籤：**內容` 這類緊鄰全形標點的寫法會正確配對）、行內與區塊程式碼（語法上色）、連結與圖片、清單與巢狀清單、**任務清單**、**表格**（含對齊）、引用、**GFM Alerts**（`> [!NOTE]`）、分隔線、**腳註**、**定義清單**、**數學公式**（`$…$`、`$$…$$`、` ```math `）、YAML front matter、內嵌 HTML（`<details>`、`<kbd>`、`<img>` 等，經 sanitize）。
@@ -218,7 +227,7 @@ std::fs::write("notes.html", &doc.html).expect("寫入失敗");
 
 `doc.html` 是完整的單一檔案頁面，另外還有 `title`、`lang`、`body`（單獨的 `<main>` 內容）、`warnings`（GitHub 會留下字面的強調符號）與 `uses_highlight` / `uses_mermaid`。
 
-`Options` 對應命令列旗標與設定檔：`title`、`lang`、`theme`、`base`、`default_style`、`enhance`、`toc` 與 `toc_title`、`highlight`、`math`、`mermaid`、`smart_punctuation`、`unsafe_html`，以及 `accent` / `width` / `font` / `font_size` 捷徑與 `extra_css`（`CssSource::Inline` 或 `CssSource::Link`）。欄位都是公開的，所以也能用結構更新語法：
+`Options` 對應命令列旗標與設定檔：`title`、`lang`、`theme`、`base`、`default_style`、`enhance`、`content_only`、`toc` 與 `toc_title`、`highlight`、`math`、`mermaid`、`smart_punctuation`、`unsafe_html`，以及 `accent` / `width` / `font` / `font_size` 捷徑與 `extra_css`（`CssSource::Inline` 或 `CssSource::Link`）。欄位都是公開的，所以也能用結構更新語法：
 
 ```rust
 let options = mhtml::Options { unsafe_html: true, ..Default::default() };

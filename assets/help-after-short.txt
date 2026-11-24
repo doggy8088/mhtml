@@ -3,6 +3,7 @@ EXAMPLES:
   mhtml README.md out.html --theme dark Dark theme
   mhtml doc.md out.html --css my.css    Add your own stylesheet
   mhtml README.md                       Preview in the default browser
+  mhtml doc.md --content-only           Preview plain content for copying
   cat doc.md | mhtml - -                Read stdin, write stdout
 
 Run `mhtml --help` for the full guide: output contract, more examples, styling hooks, config file.

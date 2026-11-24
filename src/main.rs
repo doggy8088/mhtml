@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{self, IsTerminal, Read, Write};
 use std::path::Path;
 
+use ammonia::Url;
 use anyhow::{Context, Result, bail};
 use clap::error::ErrorKind;
 use clap::{CommandFactory, Parser};
@@ -76,6 +77,12 @@ fn main() -> Result<()> {
             .filter(|p| !p.as_os_str().is_empty());
         Some(preview::dir_to_file_url(dir.unwrap_or(Path::new("."))))
     });
+    let base = if settings.content_only {
+        base.map(|base| content_base(base, cli.output.as_deref()))
+            .transpose()?
+    } else {
+        base
+    };
 
     let doc = to_html(
         &source,
@@ -88,6 +95,7 @@ fn main() -> Result<()> {
             base,
             default_style: settings.default_style,
             enhance: settings.enhance,
+            content_only: settings.content_only,
             // The config file and the flags were already merged and validated.
             css_overrides: settings.overrides,
             extra_css: settings.extra_css,
@@ -137,6 +145,28 @@ fn main() -> Result<()> {
         std::process::exit(1);
     }
     Ok(())
+}
+
+/// Resolves a relative --base as the browser would for the generated page.
+fn content_base(base: String, output: Option<&Path>) -> Result<String> {
+    if Url::parse(&base).is_ok() {
+        return Ok(base);
+    }
+    let dir = match output {
+        None => preview::directory(),
+        Some(path) => path.parent().unwrap_or(Path::new(".")).to_path_buf(),
+    };
+    let dir = if dir.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        &dir
+    };
+    let dir = std::path::absolute(dir)?;
+    let document_base = Url::parse(&preview::dir_to_file_url(&dir))?;
+    Ok(document_base
+        .join(&base)
+        .with_context(|| format!("invalid base URL {base:?}"))?
+        .into())
 }
 
 /// Usage error (exit 2) for a run that has neither an INPUT nor piped Markdown.

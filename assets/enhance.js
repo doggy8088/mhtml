@@ -12,14 +12,14 @@
         sorted: function (name, up) { return '已依 ' + name + (up ? ' 遞增' : ' 遞減') + '排序'; },
         moveCol: '拖曳以搬移欄位（Alt+←/→）',
         colMoved: function (name, n) { return '已將 ' + name + ' 欄移至第 ' + n + ' 欄'; },
-        copy: '複製', copied: '已複製 ✓', table: '表格' }
+        copy: '複製', copied: '已複製 ✓', table: '表格', exportCsv: '匯出 CSV' }
     : { filter: 'Filter rows…', rows: function (n, t) { return n === t ? t + ' rows' : n + ' of ' + t + ' rows'; },
         scroll: '← scroll sideways →', sort: 'Sort', resize: 'Drag to resize (double-click to reset)',
         reset: 'Reset order and widths', resetDone: 'Original order and widths restored', unsorted: 'Original order restored',
         sorted: function (name, up) { return 'Sorted by ' + name + (up ? ' ascending' : ' descending'); },
         moveCol: 'Drag to move the column (Alt+←/→)',
         colMoved: function (name, n) { return name + ' column moved to position ' + n; },
-        copy: 'Copy', copied: 'Copied ✓', table: 'Table' };
+        copy: 'Copy', copied: 'Copied ✓', table: 'Table', exportCsv: 'Export CSV' };
   var collator = new Intl.Collator(lang, { numeric: true, sensitivity: 'base' });
 
   function text(el) { return (el.textContent || '').replace(/\s+/g, ' ').trim(); }
@@ -38,12 +38,53 @@
     return m ? parseFloat(m[1]) : NaN;
   }
 
-  function setupTable(wrap) {
+  function csvCellText(node) {
+    if (node.nodeType === Node.TEXT_NODE) return node.data;
+    if (node.nodeName === 'BR') return '\r\n';
+    if (node.nodeName === 'IMG') return node.alt;
+    if (node.localName === 'math' && node.hasAttribute('data-mhtml-latex')) {
+      return node.getAttribute('data-mhtml-latex');
+    }
+    return Array.from(node.childNodes, csvCellText).join('');
+  }
+
+  function csvField(cell) {
+    var value = csvCellText(cell);
+    var trimmed = value.trimStart();
+    var signedNumber = /^[+-](?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?\s*$/i;
+    // Protect spreadsheet imports while keeping ordinary signed numbers numeric.
+    if (/^[=+@＝＋－＠-]/.test(trimmed) && !signedNumber.test(trimmed)) {
+      value = '\t' + value;
+    } else if (/^[\t\r\n]/.test(value)) {
+      value = "'" + value;
+    }
+    return '"' + value.replace(/"/g, '""') + '"';
+  }
+
+  function downloadCsv(table, index) {
+    var lines = Array.from(table.rows)
+      .filter(function (row) { return !row.hidden; })
+      .map(function (row) {
+        return Array.from(row.cells, csvField).join(',');
+      });
+    var blob = new Blob(['\uFEFF', lines.join('\r\n') + '\r\n'], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = 'table-' + (index + 1) + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // Let the browser start the download before releasing the object URL.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  function setupTable(wrap, index) {
     var table = wrap.querySelector(':scope > table');
-    if (!table || !table.tHead || !table.tBodies[0]) return;
+    if (!table || !table.tHead || !table.tHead.rows.length) return;
     var head = table.tHead.rows[0];
     var body = table.tBodies[0];
-    var rows = Array.prototype.slice.call(body.rows);
+    var rows = body ? Array.prototype.slice.call(body.rows) : [];
     rows.forEach(function (r, i) { r.mxIndex = i; });
     var headers = Array.prototype.map.call(head.cells, function (th) { return text(th); });
     var label = nearestHeading(wrap) || headers.join(' / ');
@@ -165,7 +206,7 @@
       wrap.classList.add('has-labels');
     }
 
-    if (wrap.classList.contains('sortable')) {
+    if (body && wrap.classList.contains('sortable')) {
       var state = { th: null, dir: 0 };
       Array.prototype.forEach.call(head.cells, function (th) {
         if (th.querySelector('a, button, input')) return;
@@ -299,6 +340,14 @@
       };
     }
 
+    var exportButton = document.createElement('button');
+    exportButton.type = 'button';
+    exportButton.className = 'table-export';
+    exportButton.textContent = T.exportCsv;
+    if (label) exportButton.setAttribute('aria-label', T.exportCsv + ' — ' + label);
+    toolbar().appendChild(exportButton);
+    exportButton.addEventListener('click', function () { downloadCsv(table, index); });
+
     // One control to bring back the original row order, column order and widths.
     if (wrap.classList.contains('sortable') || wrap.classList.contains('resizable') || cells.length >= 2) {
       var reset = document.createElement('button');
@@ -308,7 +357,7 @@
       reset.title = T.reset;
       toolbar().appendChild(reset);
       reset.addEventListener('click', function () {
-        if (wrap.classList.contains('sortable')) {
+        if (body && wrap.classList.contains('sortable')) {
           state.th = null;
           state.dir = 0;
           sortBy(0, 0);

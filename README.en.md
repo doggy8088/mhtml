@@ -31,6 +31,8 @@ mhtml README.md out.html --theme dark --css my.css
 
 On by default (`--no-enhance` or `enhance = false` turns it off). mhtml reads the document's shape and adjusts the page without touching the text, its order or heading ids: long multi-section documents get a sticky side outline, wide tables widen the column (`--mhtml-wide-width`), heading-less prose gets a reading column, `Label: value` lists become property grids, short lists become cards, and tables become sortable (2+ rows), filterable, resizable, with draggable column order (drag a header, or Alt+←/→), sticky headers and stacked cards on narrow screens. A reset control restores row order, column order and widths. Code blocks reveal a copy icon at the top-right corner while hovered. CJK documents get the right `<html lang>` and roomier line spacing when `--lang` is not given.
 
+The **Export CSV** button downloads the headers and currently visible rows in the current row and column order. The file uses UTF-8 with a BOM for Excel. Formula-like fields are escaped for spreadsheets.
+
 ## Install
 
 ```sh
@@ -64,7 +66,13 @@ mhtml [OPTIONS] <INPUT> [OUTPUT]
 
 Preview files are named `<name>-<mhtml version>-<content hash>.html` (name is `Markdown` for stdin): the same page always gets the same path, while other content, flags or a new version get a new file, so an open browser tab is never overwritten.
 
-Main flags: `-t/--theme`, `-c/--css <FILE|URL>` (repeatable), `--no-default-style`, `--accent`, `--width`, `--font`, `--font-size`, `--title`, `--lang`, `--toc`, `--toc-title`, `--no-highlight`, `--no-math`, `--no-mermaid`, `--smart-punctuation`, `--unsafe-html`, `--check`, `--base`, `--config`, `--no-config`, `--init-config`, `--print-config-path`. Run `mhtml --help` for details. Every on/off flag has an opposite (`--toc` / `--no-toc`) so a single run can override the config file.
+Main flags: `-t/--theme`, `-c/--css <FILE|URL>` (repeatable), `--no-default-style`, `--accent`, `--width`, `--font`, `--font-size`, `--title`, `--lang`, `--toc`, `--toc-title`, `--no-highlight`, `--no-math`, `--no-mermaid`, `--content-only`, `--smart-punctuation`, `--unsafe-html`, `--check`, `--base`, `--config`, `--no-config`, `--init-config`, `--print-config-path`. Run `mhtml --help` for details. Every on/off flag has an opposite (`--toc` / `--no-toc`) so a single run can override the config file.
+
+### Copy to Outlook
+
+Run `mhtml a.md --content-only`, select all in the browser, and copy the page into Outlook. This mode keeps headings, lists, links, images and tables as HTML with browser styling. Task markers become text, and formulas and Mermaid diagrams appear as source. The mode skips themes, custom CSS, the generated table of contents and interactive controls, and sanitizes raw HTML.
+
+Set `content_only = true` in your config to use it by default. Use `--no-content-only` to restore regular output for a run.
 
 ## Config file
 
@@ -145,7 +153,7 @@ std::fs::write("notes.html", &doc.html).expect("write");
 
 `doc` carries the whole page in `html`, plus `title`, `lang`, `body` (the `<main>` content on its own), `warnings` (emphasis markers GitHub leaves literal) and `uses_highlight` / `uses_mermaid`.
 
-`Options` mirrors the flags and the config file: `title`, `lang`, `theme`, `base`, `default_style`, `enhance`, `toc` and `toc_title`, `highlight`, `math`, `mermaid`, `smart_punctuation`, `unsafe_html`, the `accent` / `width` / `font` / `font_size` shortcuts, and `extra_css` (`CssSource::Inline` or `CssSource::Link`). The fields are public, so struct-update syntax works too:
+`Options` mirrors the flags and the config file: `title`, `lang`, `theme`, `base`, `default_style`, `enhance`, `content_only`, `toc` and `toc_title`, `highlight`, `math`, `mermaid`, `smart_punctuation`, `unsafe_html`, the `accent` / `width` / `font` / `font_size` shortcuts, and `extra_css` (`CssSource::Inline` or `CssSource::Link`). The fields are public, so struct-update syntax works too:
 
 ```rust
 let options = mhtml::Options { unsafe_html: true, ..Default::default() };

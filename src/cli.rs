@@ -73,6 +73,14 @@ pub struct Cli {
     #[arg(long, hide = true, overrides_with = "toc")]
     pub no_toc: bool,
 
+    /// Render static document content for copying into Outlook and other apps
+    #[arg(long, overrides_with = "no_content_only")]
+    pub content_only: bool,
+
+    /// Use regular output (to undo `content_only = true` in the config)
+    #[arg(long, hide = true, overrides_with = "content_only")]
+    pub no_content_only: bool,
+
     /// Turn off adaptive presentation (layout by document shape, cards, property
     /// grids, section cues, interactive tables, side outline)
     #[arg(long, overrides_with = "enhance")]
@@ -342,7 +350,7 @@ mod help_tests {
         let keys_line: String = AFTER_LONG
             .lines()
             .skip_while(|l| !l.trim_start().starts_with("Keys:"))
-            .take(2)
+            .take_while(|line| !line.trim_start().starts_with("On/off flags"))
             .collect::<Vec<_>>()
             .join(" ");
         for key in keys {
